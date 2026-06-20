@@ -1,0 +1,107 @@
+@use '@angular/material' as mat;
+
+// ── Sred.io Design Tokens ──────────────────────────────────────────────────
+:root {
+  // Brand
+  --clr-primary:        #04BCF3;
+  --clr-primary-dark:   #029AC8;
+  --clr-primary-light:  #e0f7fe;
+  --clr-primary-subtle: #f0fbff;
+
+  // Navy (topbar, sidebar, headings)
+  --clr-navy:           #0a1628;
+  --clr-navy-mid:       #1e3a5f;
+  --clr-navy-light:     #1e293b;
+
+  // Page surfaces
+  --clr-bg:             #eaf6fd;
+  --clr-surface:        #ffffff;
+  --clr-surface-alt:    #f8fcff;
+
+  // Borders
+  --clr-border:         #c8e6f5;
+  --clr-border-light:   #e0f2fb;
+
+  // Text
+  --clr-text:           #0a1628;
+  --clr-text-mid:       #334155;
+  --clr-text-muted:     #64748b;
+
+  // Semantic — success
+  --clr-success:        #059669;
+  --clr-success-bg:     #ecfdf5;
+  --clr-success-border: #a7f3d0;
+
+  // Semantic — warning (amber)
+  --clr-warn:           #f59e0b;
+  --clr-warn-bg:        #fffbeb;
+  --clr-warn-border:    #fcd34d;
+
+  // Semantic — danger (red)
+  --clr-danger:         #ef4444;
+  --clr-danger-bg:      #fef2f2;
+  --clr-danger-border:  #fca5a5;
+
+  // Semantic — orange (expired / reconnect)
+  --clr-orange:         #f97316;
+  --clr-orange-dark:    #ea580c;
+  --clr-orange-bg:      #fff7ed;
+  --clr-orange-border:  #fdba74;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--clr-bg);
+}
+
+// ── AG Grid — Sred.io branded ─────────────────────────────────────────────
+.ag-theme-material {
+  --ag-font-family: Roboto, 'Helvetica Neue', sans-serif;
+  --ag-font-size: 14px;
+  --ag-row-height: 40px;
+  --ag-header-height: 44px;
+  --ag-header-background-color: var(--clr-primary-subtle);
+  --ag-header-foreground-color: var(--clr-navy);
+  --ag-row-background-color: var(--clr-surface);
+  --ag-odd-row-background-color: #f8fcff;
+  --ag-row-hover-color: var(--clr-primary-light);
+  --ag-selected-row-background-color: #b3ecfa;
+  --ag-border-color: var(--clr-border);
+  --ag-header-column-separator-color: var(--clr-border);
+  --ag-header-column-separator-display: block;
+  --ag-header-column-separator-width: 1px;
+  --ag-cell-horizontal-border: solid var(--clr-border-light) 1px;
+  --ag-header-font-weight: 600;
+  --ag-header-font-size: 13px;
+}
+
+.ag-theme-material .ag-floating-filter-input {
+  font-size: 13px;
+}
+
+// ── Status chips ────────────────────────────────────────────────────────────
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &.status-open        { background: var(--clr-primary-light); color: var(--clr-primary-dark); }
+  &.status-in-progress { background: var(--clr-warn-bg);       color: #b45309; }
+  &.status-closed      { background: var(--clr-success-bg);    color: var(--clr-success); }
+  &.status-default     { background: #f3e8ff;                  color: #7c3aed; }
+}
+
+// ── AG Grid cell alignment ───────────────────────────────────────────────────
+.ag-cell {
+  display: flex;
+  align-items: center;
+}
+
+// ── Snackbar ─────────────────────────────────────────────────────────────────
+.error-snack { background: var(--clr-danger); color: white; }
