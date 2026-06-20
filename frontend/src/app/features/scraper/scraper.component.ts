@@ -709,6 +709,7 @@ export class ScraperComponent implements OnInit, OnDestroy {
   readonly session    = toSignal(this.store.select(ScraperState.session));
   readonly authLoading = toSignal(this.store.select(ScraperState.authLoading), { initialValue: false });
   readonly mfaLoading  = toSignal(this.store.select(ScraperState.mfaLoading), { initialValue: false });
+  readonly error       = toSignal(this.store.select(ScraperState.error));
   readonly stats       = toSignal(this.store.select(ScraperState.stats));
 
   readonly chartOptions = computed<AgChartOptions>(() => {
@@ -743,7 +744,8 @@ export class ScraperComponent implements OnInit, OnDestroy {
 
     interval(3000).pipe(takeUntil(this.destroy$)).subscribe(() => {
       const s = this.session();
-      if (s?.sessionId && (s.status === 'running' || s.status === 'authenticating')) {
+      const pollingStatuses = ['running', 'authenticating', 'awaiting_captcha', 'awaiting_mfa'];
+      if (s?.sessionId && pollingStatuses.includes(s.status ?? '')) {
         this.store.dispatch(new ScraperActions.RefreshSession(s.sessionId));
       }
       // Refresh stats once when scraping finishes
@@ -802,7 +804,12 @@ export class ScraperComponent implements OnInit, OnDestroy {
     const s = this.session();
     if (!s?.sessionId) return;
     this.store.dispatch(new ScraperActions.ValidateCookies(s.sessionId)).subscribe(() => {
-      this.snackBar.open('Cookies validated!', 'Close', { duration: 3000 });
+      const err = this.error();
+      if (err) {
+        this.snackBar.open(`Validation failed: ${err}`, 'Close', { duration: 6000 });
+      } else {
+        this.snackBar.open('Cookies validated!', 'Close', { duration: 3000 });
+      }
     });
   }
 

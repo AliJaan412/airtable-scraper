@@ -33,7 +33,7 @@ export const ScraperService = {
 
     let requiresMfa = false;
 
-    // Run auth in background — don't await to allow MFA interaction
+    // Run auth in background — don't await to allow MFA/CAPTCHA interaction
     const authPromise = CookieService.startAuth(sessionId, email, password, async (status) => {
       if (status === 'awaiting_mfa') {
         requiresMfa = true;
@@ -45,14 +45,21 @@ export const ScraperService = {
       }
     });
 
-    // Give Puppeteer 3 seconds to determine if MFA is required
-    await sleep(3000);
+    // Poll for up to 60s so we can detect an active-session fast-path (< 5s) or
+    // an MFA/CAPTCHA prompt that appears after the full login sequence (20-40s).
+    // Stop early once the session reaches any definitive state.
+    const INIT_DEADLINE = Date.now() + 60000;
+    while (Date.now() < INIT_DEADLINE) {
+      await sleep(1500);
+      const session = await scraperRepo.getSession(sessionId);
+      const status = session?.status;
+      if (status === 'awaiting_mfa')    { requiresMfa = true; break; }
+      if (status === 'awaiting_captcha') { break; }
+      if (status === 'idle' || status === 'running' || status === 'failed') { break; }
+    }
 
-    const session = await scraperRepo.getSession(sessionId);
-    if (session?.status === 'awaiting_mfa') {
-      requiresMfa = true;
-    } else {
-      // Auth may complete without MFA — store cookies when done
+    if (!requiresMfa) {
+      // Auth completes without MFA (or CAPTCHA) — store cookies when done
       authPromise
         .then(async (cookies) => {
           await scraperRepo.upsertSession(sessionId, {
@@ -125,6 +132,13 @@ export const ScraperService = {
           allRecords.push({ baseId: base.baseId, tableId: table.tableId, recordId: record.recordId });
         }
       }
+    }
+
+    if (allRecords.length === 0) {
+      await scraperRepo.updateSessionStatus(sessionId, 'failed', {
+        error: 'No records found — run Sync All on the Airtable page first to import your tickets',
+      });
+      return;
     }
 
     await scraperRepo.updateSessionStatus(sessionId, 'running', {

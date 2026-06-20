@@ -77,33 +77,36 @@ export const CookieService = {
     try {
       onStatusChange('authenticating');
 
-      // Clear any stored Airtable cookies from the persistent chrome-profile so that
-      // /login does not redirect straight to the dashboard (which produces url=/ and inputs=[]).
-      const cdpSession = await page.createCDPSession();
-      await cdpSession.send('Network.clearBrowserCookies');
-      await cdpSession.detach();
+      // Do NOT clear cookies or localStorage — Airtable's bot detection uses these as trust
+      // signals. Clearing them makes the browser look like a fresh bot, which triggers the
+      // "Press and hold" CAPTCHA challenge on every attempt.
+      //
+      // Instead, navigate to /login and read the outcome:
+      //   • Redirected away → an active session exists; reuse those cookies directly.
+      //   • Still on /login  → no valid session; proceed with email+password below.
 
       // Navigate homepage first — jumping cold to /login is a bot signal.
-      // Real browsers always load the root domain before the auth page.
       await page.goto('https://airtable.com', { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => null);
-      await new Promise((r) => setTimeout(r, 1200));
+      await new Promise((r) => setTimeout(r, 800));
 
       await page.goto('https://airtable.com/login', { waitUntil: 'networkidle2', timeout: 40000 });
 
-      // Log where we landed — helps detect Cloudflare or verification pages
+      // Log where we landed — helps detect Cloudflare / verify pages
       let pageTitle = await page.title();
       let pageUrl = page.url();
       console.log(`[Auth] Loaded — title: "${pageTitle}"  url: ${pageUrl}`);
 
-      // If /login redirected to the dashboard homepage, a stale session was still active.
-      // Navigate to the logout endpoint so /login renders the form on the next visit.
+      // If /login redirected us to the dashboard, a live session is still active.
+      // Reuse those cookies — scraping always uses the same account, so this is safe.
+      // This avoids unnecessary re-authentication and eliminates the main trigger for
+      // repeated CAPTCHA challenges.
       if (!pageUrl.includes('/login') && !pageUrl.includes('/verify') && !pageUrl.includes('captcha')) {
-        console.log('[Auth] Redirected away from login — logging out and retrying');
-        await page.goto('https://airtable.com/logout', { waitUntil: 'networkidle2', timeout: 15000 }).catch(() => null);
-        await page.goto('https://airtable.com/login', { waitUntil: 'networkidle2', timeout: 40000 });
-        pageTitle = await page.title();
-        pageUrl = page.url();
-        console.log(`[Auth] After logout retry — title: "${pageTitle}"  url: ${pageUrl}`);
+        console.log('[Auth] Active session detected — reusing existing cookies (skipping re-login)');
+        const cookies = await page.cookies();
+        const cookieStr = serializeCookies(cookies);
+        liveBrowsers.set(sessionId, { browser, page });
+        onStatusChange('running');
+        return cookieStr;
       }
 
       // ── Device verification ("Verify it's you") ────────────────────────────
@@ -177,29 +180,57 @@ export const CookieService = {
           await page.goto('https://airtable.com/login', { waitUntil: 'networkidle2', timeout: 40000 });
           onStatusChange('awaiting_captcha');
 
-          // Wait up to 3 minutes for the user to solve the challenge
-          await page.waitForFunction(
-            `() => document.querySelectorAll('input').length > 0`,
-            { timeout: 180000 },
-          ).catch(async () => {
+          // Poll every 600 ms for up to 3 minutes.
+          // waitForFunction fires immediately because the CAPTCHA page already contains
+          // a hidden <input> (the CAPTCHA token field), so "any input" is the wrong signal.
+          // Instead, watch the URL: once the page leaves /login the CAPTCHA is solved.
+          const CAPTCHA_DEADLINE = Date.now() + 180000;
+          let captchaOutcome: 'authenticated' | 'email_form' | 'code_form' | 'timeout' = 'timeout';
+
+          while (Date.now() < CAPTCHA_DEADLINE) {
+            try {
+              const currentUrl = page.url();
+
+              // Navigated away from login/verify → CAPTCHA solved, session active
+              if (!currentUrl.includes('/login') && !currentUrl.includes('/verify') && !currentUrl.includes('captcha')) {
+                captchaOutcome = 'authenticated';
+                break;
+              }
+
+              // Visible email input → login form appeared; fall through to login flow
+              const emailEl = await page.$('input[name="email"], input[type="email"], input[autocomplete="email"]').catch(() => null);
+              if (emailEl) {
+                const vis = await page.evaluate((el: any) => el.type !== 'hidden' && el.offsetParent !== null, emailEl).catch(() => false);
+                if (vis) { captchaOutcome = 'email_form'; break; }
+              }
+
+              // Visible code input → email verification step
+              const codeEl = await page.$('input[type="number"], input[name*="code"], input[placeholder*="code"]').catch(() => null);
+              if (codeEl) {
+                const vis = await page.evaluate((el: any) => el.type !== 'hidden' && el.offsetParent !== null, codeEl).catch(() => false);
+                if (vis) { captchaOutcome = 'code_form'; break; }
+              }
+            } catch (_e) { /* page mid-navigation — retry next tick */ }
+
+            await new Promise((r) => setTimeout(r, 600));
+          }
+
+          if (captchaOutcome === 'timeout') {
             await browser.close();
             throw new Error('CAPTCHA verification timed out — please try again');
-          });
+          }
 
-          // Determine what appeared: a code field (email verification) or the login form
-          const postCaptchaInputs = await page.evaluate(() =>
-            Array.from(document.querySelectorAll('input')).map((el: any) => ({
-              type: el.type, name: el.name, placeholder: el.placeholder,
-            })),
-          ).catch(() => [] as any[]);
+          if (captchaOutcome === 'authenticated') {
+            console.log('[Auth] Authenticated after CAPTCHA solve — extracting cookies');
+            const cookies = await page.cookies();
+            const cookieStr = serializeCookies(cookies);
+            liveBrowsers.set(sessionId, { browser, page });
+            onStatusChange('running');
+            return cookieStr;
+          }
 
-          const hasCodeAfterCaptcha = postCaptchaInputs.some((i: any) =>
-            /code|otp|token|pin/i.test(i.name ?? '') ||
-            /code|otp|digit/i.test(i.placeholder ?? '') ||
-            i.type === 'number' || i.type === 'tel',
-          );
-
-          if (hasCodeAfterCaptcha) {
+          if (captchaOutcome === 'code_form') {
+            console.log('[Auth] Code entry required after CAPTCHA — awaiting MFA input');
             onStatusChange('awaiting_mfa');
             return await new Promise<string>((resolve, reject) => {
               const timer = setTimeout(() => {
@@ -213,24 +244,57 @@ export const CookieService = {
               });
             });
           }
-          // Otherwise fall through — login form is visible, continue below
+          // captchaOutcome === 'email_form' → fall through to email+password login below
         }
       }
       // ── End device verification ────────────────────────────────────────────
 
-      // Wait up to 15s for ANY input (also covers the fall-through from verification above)
-      await page.waitForFunction(
-        `() => document.querySelectorAll('input').length > 0`,
-        { timeout: 15000 },
-      ).catch(async () => {
-        await page.screenshot({ path: 'auth-debug.png', fullPage: true }).catch(() => null);
-        const html = await page.content().catch(() => '');
-        console.error('[Auth] No inputs after 15s. Check auth-debug.png. Page excerpt:', html.slice(0, 800));
-        throw new Error(`Login page rendered no inputs — check auth-debug.png in backend/ folder. Title: "${pageTitle}"`);
-      });
+      // After a CAPTCHA solve or device-verification redirect the page is still transitioning.
+      // Wait for any pending navigation to settle before inspecting the page state.
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => null);
+      await new Promise((r) => setTimeout(r, 1200));
 
-      // Email field — try every known selector variant
-      const emailSelectors = [
+      // Detect where we landed after the verification/CAPTCHA flow.
+      const postVerifyUrl = page.url();
+      const postVerifyTitle = await page.title();
+      console.log(`[Auth] Post-verify state — url: ${postVerifyUrl}  title: "${postVerifyTitle}"`);
+
+      // Already logged in (CAPTCHA solved and Airtable considered us authenticated)?
+      if (!postVerifyUrl.includes('/login') && !postVerifyUrl.includes('/verify') && !postVerifyUrl.includes('/signup')) {
+        console.log('[Auth] Already authenticated after verification — extracting cookies');
+        const cookies = await page.cookies();
+        const cookieStr = serializeCookies(cookies);
+        liveBrowsers.set(sessionId, { browser, page });
+        onStatusChange('running');
+        return cookieStr;
+      }
+
+      // Landed on another verify page (Airtable sometimes chains verification steps)?
+      // Click "Send code" and treat as MFA.
+      if (postVerifyUrl.includes('/verify') || /verify/i.test(postVerifyTitle)) {
+        console.log('[Auth] Chained verify page — clicking Send code and awaiting MFA input');
+        await page.evaluate(() => {
+          const btns = Array.from(document.querySelectorAll('button, [role="button"]')) as HTMLElement[];
+          const btn = btns.find((b) => /send|continue|next|verify|email/i.test(b.textContent ?? '')) ?? btns[0];
+          if (btn) btn.click();
+        }).catch(() => null);
+        await new Promise((r) => setTimeout(r, 2500));
+        onStatusChange('awaiting_mfa');
+        return await new Promise<string>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            browser.close();
+            pendingSessions.delete(sessionId);
+            reject(new Error('Verification timeout — session expired'));
+          }, 300000);
+          pendingSessions.set(sessionId, { browser, page, resolve, reject, timer, postVerificationCredentials: { email, password } });
+        });
+      }
+
+      // Poll for the email input — robust against mid-navigation DOM resets.
+      // Promise.race + waitForSelector fails here because any navigation event causes
+      // an immediate rejection before the new page finishes loading.
+      // Instead, poll page.$() every 600ms until the field appears or 25s elapses.
+      const EMAIL_SELECTORS = [
         'input[name="email"]',
         'input[type="email"]',
         'input[autocomplete="email"]',
@@ -239,23 +303,30 @@ export const CookieService = {
         'input[data-fieldname*="email" i]',
       ];
       let emailSelector: string | null = null;
-      for (const sel of emailSelectors) {
-        const found = await page.$(sel);
-        if (found) { emailSelector = sel; break; }
+      const pollDeadline = Date.now() + 25000;
+      while (!emailSelector && Date.now() < pollDeadline) {
+        for (const sel of EMAIL_SELECTORS) {
+          try {
+            const el = await page.$(sel);
+            if (el) { emailSelector = sel; break; }
+          } catch { /* page may be mid-navigation — try again on next tick */ }
+        }
+        if (!emailSelector) await new Promise((r) => setTimeout(r, 600));
       }
+
       if (!emailSelector) {
+        const finalUrl = page.url();
         const inputs = await page.evaluate(() =>
           Array.from(document.querySelectorAll('input')).map((el) => ({
             name: (el as HTMLInputElement).name,
             type: (el as HTMLInputElement).type,
             placeholder: (el as HTMLInputElement).placeholder,
             id: el.id,
-            class: el.className.slice(0, 60),
           })),
-        );
+        ).catch(() => [] as any[]);
         await page.screenshot({ path: 'auth-debug.png', fullPage: true }).catch(() => null);
-        console.error('[Auth] No email selector matched. Inputs:', JSON.stringify(inputs, null, 2));
-        throw new Error(`Email field not found. Inputs on page: ${JSON.stringify(inputs)}`);
+        console.error('[Auth] Email field not found after 25s. URL:', finalUrl, 'Inputs:', JSON.stringify(inputs));
+        throw new Error(`Email field not found after 25s. URL: ${finalUrl}. Inputs: ${JSON.stringify(inputs)}`);
       }
 
       console.log(`[Auth] Using email selector: ${emailSelector}`);

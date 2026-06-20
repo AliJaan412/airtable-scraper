@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { State, Action, StateContext, Selector } from '@ngxs/store';
-import { tap, catchError } from 'rxjs/operators';
+import { tap, catchError, switchMap } from 'rxjs/operators';
 import { EMPTY } from 'rxjs';
 import { ScraperService } from '../../core/services/scraper.service';
 import { ScraperSession } from '../../core/models';
@@ -78,7 +78,14 @@ export class ScraperState {
   refreshSession(ctx: StateContext<ScraperStateModel>, { sessionId }: ScraperActions.RefreshSession) {
     return this.scraperSvc.getSession(sessionId).pipe(
       tap((session) => ctx.patchState({ session })),
-      catchError(() => EMPTY),
+      catchError((err) => {
+        const msg: string = err?.error?.message || '';
+        if (msg.toLowerCase().includes('not found') || err?.status === 404) {
+          // Session was deleted externally — stop polling and reset to auth form
+          ctx.patchState({ session: null, sessionLoaded: false });
+        }
+        return EMPTY;
+      }),
     );
   }
 
@@ -121,13 +128,10 @@ export class ScraperState {
 
   @Action(ScraperActions.ValidateCookies)
   validateCookies(ctx: StateContext<ScraperStateModel>, { sessionId }: ScraperActions.ValidateCookies) {
+    ctx.patchState({ error: null });
     return this.scraperSvc.validateCookies(sessionId).pipe(
-      tap(() => {
-        // Refresh session to pick up cookiesValidatedAt
-        return this.scraperSvc.getSession(sessionId).pipe(
-          tap((session) => ctx.patchState({ session })),
-        );
-      }),
+      switchMap(() => this.scraperSvc.getSession(sessionId)),
+      tap((session) => ctx.patchState({ session })),
       catchError((err) => {
         ctx.patchState({ error: err?.error?.message || 'Cookie validation failed' });
         return EMPTY;
