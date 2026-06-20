@@ -27,7 +27,7 @@ export async function enqueueScraperJob(organizationId: string, sessionId: strin
     const job = await getScraperQueue().add(
       'run-scraper',
       { organizationId, sessionId },
-      { ...JOB_OPTS, jobId: `scraper:${organizationId}:${sessionId}` },
+      JOB_OPTS, // no fixed jobId — each run gets a unique ID so re-runs are not deduplicated
     );
     return job.id ?? sessionId;
   } catch (err: any) {

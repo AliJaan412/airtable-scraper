@@ -257,6 +257,11 @@ router.post('/run', async (req: Request, res: Response) => {
     const { sessionId } = req.body;
     if (!sessionId) return sendError(res, 'sessionId is required', 400);
 
+    // Mark as running immediately — before enqueuing — so the polling loop never
+    // reads stale 'completed' from the DB during the gap between HTTP response and
+    // worker pick-up, which would cause the frontend to stop polling too early.
+    await ScraperService.markRunning(sessionId);
+
     const jobId = await enqueueScraperJob(organizationId, sessionId);
     sendSuccess(res, { started: true, sessionId, jobId });
   } catch (err: any) {

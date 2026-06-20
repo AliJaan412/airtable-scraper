@@ -267,10 +267,9 @@ import type { ChangelogStats } from '../../store/scraper/scraper.state';
                   <button
                     class="btn btn--primary w-full"
                     (click)="runScraper()"
-                    [disabled]="session()?.status === 'completed'"
                   >
-                    <mat-icon>{{ session()?.status === 'completed' ? 'task_alt' : 'play_arrow' }}</mat-icon>
-                    {{ session()?.status === 'completed' ? 'Completed' : 'Start Scraping' }}
+                    <mat-icon>{{ session()?.status === 'completed' ? 'replay' : 'play_arrow' }}</mat-icon>
+                    {{ session()?.status === 'completed' ? 'Run Again' : 'Start Scraping' }}
                   </button>
                 } @else {
                   <button class="btn btn--outline w-full" disabled>

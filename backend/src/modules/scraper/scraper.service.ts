@@ -145,21 +145,34 @@ export const ScraperService = {
       progress: { total: allRecords.length, processed: 0, failed: 0 },
     });
 
-    // Re-use the browser kept alive from login — mandatory, because __Host- cookies
-    // are bound to the live browser and cannot be re-injected into a fresh one.
-    // If the live browser is gone (e.g. backend restarted), fail immediately so the
-    // user gets a clear prompt to re-authenticate instead of 200 silent 401s.
+    // Prefer the live browser kept from login (has the freshest __Host- cookies).
+    // If it's gone (backend restart, second scrape run, etc.), fall back to launching
+    // a new browser from the persistent chrome-profile, which stores the full Airtable
+    // session on disk. We do a quick URL check to confirm the profile session is still
+    // active before committing to a full scrape run.
     let browser: any;
     let page: any;
     try {
       const live = CookieService.takeLiveBrowser(sessionId);
-      if (!live) {
-        await scraperRepo.updateSessionStatus(sessionId, 'failed', {
-          error: 'Browser session lost — __Host- cookies require a live browser. Please re-authenticate.',
-        });
-        return;
+      if (live) {
+        ({ browser, page } = live);
+        console.log('[Scraper] Reusing live browser from authentication');
+      } else {
+        console.log('[Scraper] Live browser gone — launching from chrome-profile (no re-login needed if session is fresh)');
+        ({ browser, page } = await CookieService.openAirtablePage(session.cookies));
+
+        // Quick sanity check: profile session still active?
+        await page.goto('https://airtable.com', { waitUntil: 'networkidle2', timeout: 20000 }).catch(() => null);
+        const checkUrl = page.url();
+        if (checkUrl.includes('/login') || checkUrl.includes('/verify')) {
+          await browser.close();
+          await scraperRepo.updateSessionStatus(sessionId, 'failed', {
+            error: 'Airtable session expired — please re-authenticate to get fresh cookies',
+          });
+          return;
+        }
+        console.log('[Scraper] Chrome-profile session is active — proceeding without re-login');
       }
-      ({ browser, page } = live);
     } catch (err: any) {
       await scraperRepo.updateSessionStatus(sessionId, 'failed', { error: `Browser launch failed: ${err.message}` });
       return;
@@ -270,6 +283,13 @@ export const ScraperService = {
     }
 
     await scraperRepo.updateSessionStatus(sessionId, 'completed', { completedAt: new Date() });
+  },
+
+  async markRunning(sessionId: string): Promise<void> {
+    await scraperRepo.updateSessionStatus(sessionId, 'running', {
+      progress: { total: 0, processed: 0, failed: 0 },
+      startedAt: new Date(),
+    });
   },
 
   async getSession(sessionId: string) {

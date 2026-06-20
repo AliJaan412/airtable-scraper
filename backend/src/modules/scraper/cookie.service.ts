@@ -667,30 +667,24 @@ export const CookieService = {
   },
 
   /**
-   * Open a persistent browser page logged into Airtable.
-   * Used to share one browser across all records in a scrape run.
+   * Open a browser page logged into Airtable using the persistent chrome-profile.
+   * The profile stores the full Airtable session (including __Host- cookies) on disk,
+   * so no explicit cookie injection is needed — the browser is already authenticated
+   * as long as the session hasn't expired.
+   *
+   * NOTE: document.cookie cannot set __Host- prefixed cookies (browser blocks it).
+   * Puppeteer page.setCookie() could do it via CDP but we'd need the full Cookie
+   * objects (with domain/path/httpOnly), not the serialised name=value string.
+   * Relying on the chrome-profile is simpler and avoids that complexity entirely.
    */
-  async openAirtablePage(cookies: string): Promise<{ browser: Browser; page: Page }> {
+  async openAirtablePage(_cookies: string): Promise<{ browser: Browser; page: Page }> {
     const browser = await launchBrowser();
     const page = await browser.newPage();
-
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     );
-
-    // Navigate to Airtable home first (establishes origin)
+    // Warm up the browser on Airtable's origin — profile cookies load automatically.
     await page.goto('https://airtable.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-    // Inject cookies via JS — avoids Puppeteer setCookie restrictions on __Host- prefixed cookies
-    await page.evaluate((cookieStr: string) => {
-      cookieStr.split(';').forEach((pair) => {
-        const trimmed = pair.trim();
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore — runs in browser context
-        if (trimmed) document.cookie = trimmed + '; path=/; secure; SameSite=Lax';
-      });
-    }, cookies);
-
     return { browser, page };
   },
 

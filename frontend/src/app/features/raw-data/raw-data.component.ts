@@ -26,7 +26,6 @@ import {
   GridApi,
   ModuleRegistry,
   AllCommunityModule,
-  SizeColumnsToFitGridStrategy,
 } from 'ag-grid-community';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { FormControl } from '@angular/forms';
@@ -286,10 +285,7 @@ export class RawDataComponent implements OnInit, OnDestroy {
     },
   };
 
-  autoSizeStrategy: SizeColumnsToFitGridStrategy = {
-    type: 'fitGridWidth',
-    defaultMinWidth: 100,
-  };
+  autoSizeStrategy = { type: 'fitCellContents' as const };
 
   ngOnInit(): void {
     this.loadCollections();
@@ -312,10 +308,6 @@ export class RawDataComponent implements OnInit, OnDestroy {
 
   onGridReady(event: GridReadyEvent): void {
     this.gridApi = event.api;
-    // Auto-size columns to content after data loads
-    event.api.addEventListener('firstDataRendered', () => {
-      event.api.autoSizeAllColumns();
-    });
   }
 
   onIntegrationChange(): void {
@@ -404,6 +396,8 @@ export class RawDataComponent implements OnInit, OnDestroy {
         }
 
         this.loading.set(false);
+        // Re-size after every data load so switching collections always fits content
+        setTimeout(() => this.gridApi?.autoSizeAllColumns(), 50);
       },
       error: (err) => {
         this.loading.set(false);
@@ -413,10 +407,8 @@ export class RawDataComponent implements OnInit, OnDestroy {
   }
 
   private buildColDefs(fields: string[]): ColDef[] {
-    // Fields to hide — either sensitive or not useful in the grid
-    const hiddenFields = new Set(['__v', 'organizationId', 'cookies', 'diffRowHtml', 'password']);
-    // Fields that contain large JSON — show as truncated badge, not raw JSON
-    const largeJsonFields = new Set(['rawActivity', 'fields', 'views', 'integrationInfo']);
+    // Fields to hide — either sensitive, redundant, or not useful in the grid
+    const hiddenFields = new Set(['__v', 'organizationId', 'cookies', 'diffRowHtml', 'password', 'rawData']);
 
     return fields
       .filter((f) => !hiddenFields.has(f))
@@ -424,7 +416,7 @@ export class RawDataComponent implements OnInit, OnDestroy {
         const def: ColDef = {
           field,
           headerName: this.formatHeader(field),
-          cellRenderer: (params: any) => this.formatCell(params.value, field, largeJsonFields.has(field)),
+          cellRenderer: (params: any) => this.formatCell(params.value, field),
         };
 
         if (field === '_id') { def.maxWidth = 130; def.pinned = 'left'; }
@@ -432,7 +424,8 @@ export class RawDataComponent implements OnInit, OnDestroy {
         if (field === 'newValue' || field === 'oldValue') { def.minWidth = 130; def.maxWidth = 200; }
         if (field === 'authoredBy') { def.minWidth = 130; def.maxWidth = 200; }
         if (field === 'status') { def.maxWidth = 130; }
-        if (largeJsonFields.has(field)) { def.maxWidth = 120; def.minWidth = 90; }
+        if (field === 'fields' || field === 'views') { def.minWidth = 200; def.maxWidth = 320; }
+        if (field === 'progress') { def.maxWidth = 130; }
         if (field.toLowerCase().includes('id') && field !== '_id') { def.maxWidth = 180; }
 
         return def;
@@ -447,13 +440,44 @@ export class RawDataComponent implements OnInit, OnDestroy {
       .trim();
   }
 
-  private formatCell(value: any, field: string, isLargeJson = false): string {
+  private formatCell(value: any, field: string): string {
     if (value === null || value === undefined) return '<span style="color:#9e9e9e">—</span>';
 
-    if (isLargeJson || (typeof value === 'object' && value !== null)) {
-      return `<span style="font-size:11px;color:#555;background:#f5f5f5;padding:2px 6px;border-radius:4px;cursor:default">[JSON]</span>`;
+    // ── Array of named objects (fields, views, choices…) ──────────────────────
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '<span style="color:#9e9e9e">—</span>';
+      const names = value
+        .map((item: any) => item?.name ?? item?.label ?? item?.title ?? null)
+        .filter(Boolean);
+      if (names.length > 0) {
+        const MAX = 3;
+        const shown = names.slice(0, MAX).join(', ');
+        const more = names.length > MAX ? ` <span style="color:#9e9e9e;font-size:11px">+${names.length - MAX} more</span>` : '';
+        return `<span style="font-size:12px">${shown}${more}</span>`;
+      }
+      return `<span style="font-size:11px;color:#555;background:#f5f5f5;padding:2px 6px;border-radius:4px">${value.length} items</span>`;
     }
 
+    // ── Progress object {total, processed, failed} ─────────────────────────
+    if (typeof value === 'object' && 'processed' in value && 'total' in value) {
+      const { processed, total, failed } = value;
+      const failPart = failed > 0
+        ? ` <span style="color:#c62828;font-size:11px">(${failed} failed)</span>`
+        : '';
+      return `<span style="font-weight:600">${processed} / ${total}</span>${failPart}`;
+    }
+
+    // ── Other plain objects — show key: value pairs truncated ──────────────
+    if (typeof value === 'object') {
+      const pairs = Object.entries(value)
+        .filter(([, v]) => typeof v !== 'object')
+        .slice(0, 3)
+        .map(([k, v]) => `<span style="color:#9e9e9e;font-size:10px">${k}:</span> ${v}`)
+        .join('  ');
+      return pairs || `<span style="font-size:11px;color:#555;background:#f5f5f5;padding:2px 6px;border-radius:4px">[object]</span>`;
+    }
+
+    // ── Date fields ────────────────────────────────────────────────────────
     if (field.toLowerCase().includes('date') || field.toLowerCase().includes('time') || field.toLowerCase().includes('at')) {
       const d = new Date(value);
       if (!isNaN(d.getTime())) {
@@ -461,11 +485,13 @@ export class RawDataComponent implements OnInit, OnDestroy {
       }
     }
 
+    // ── Status chip ────────────────────────────────────────────────────────
     if (field === 'status') {
       const cls = this.statusClass(value);
       return `<span class="status-chip ${cls}">${value}</span>`;
     }
 
+    // ── Column type badge ──────────────────────────────────────────────────
     if (field === 'columnType') {
       const color = value === 'status' ? '#1976d2' : '#7b1fa2';
       return `<span style="font-size:11px;font-weight:600;color:${color};background:${color}18;padding:2px 8px;border-radius:10px">${value}</span>`;
