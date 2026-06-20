@@ -18,6 +18,10 @@ export class AirtableRepository {
     return AirtableConnectionModel.findOne({ organizationId });
   }
 
+  async updateConnection(organizationId: string, data: Partial<IAirtableConnection>): Promise<void> {
+    await AirtableConnectionModel.findOneAndUpdate({ organizationId }, { $set: data });
+  }
+
   async deleteConnection(organizationId: string): Promise<void> {
     await AirtableConnectionModel.deleteOne({ organizationId });
   }

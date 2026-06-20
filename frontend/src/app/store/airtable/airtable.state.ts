@@ -65,6 +65,11 @@ export class AirtableState {
     return state.status?.connected === true;
   }
 
+  @Selector()
+  static lastSyncedAt(state: AirtableStateModel): string | null {
+    return state.status?.lastSyncedAt ?? null;
+  }
+
   @Action(AirtableActions.LoadStatus)
   loadStatus(ctx: StateContext<AirtableStateModel>) {
     // Skip if already loaded — prevents duplicate API calls on repeated navigation
@@ -134,8 +139,14 @@ export class AirtableState {
     ctx.patchState({ syncing: true, error: null });
     return this.airtableSvc.syncAll().pipe(
       tap((results) => {
-        // After a sync the bases cache is stale — force a refresh next load
-        ctx.patchState({ syncing: false, syncResults: results, basesLoaded: false });
+        const now = new Date().toISOString();
+        const currentStatus = ctx.getState().status;
+        ctx.patchState({
+          syncing: false,
+          syncResults: results,
+          basesLoaded: false,
+          status: currentStatus ? { ...currentStatus, lastSyncedAt: now } : currentStatus,
+        });
       }),
       catchError((err) => {
         ctx.patchState({ syncing: false, error: err?.error?.message || 'Sync failed — check your connection' });

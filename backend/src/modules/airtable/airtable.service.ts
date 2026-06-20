@@ -175,7 +175,7 @@ export const AirtableService = {
 
   async getConnectionStatus(organizationId: string) {
     const cacheKey = `airtable:status:${organizationId}`;
-    const cached = await cache.get<{ connected: boolean; expiresAt?: Date; scope?: string; isExpired?: boolean }>(cacheKey);
+    const cached = await cache.get<{ connected: boolean; expiresAt?: Date; scope?: string; isExpired?: boolean; lastSyncedAt?: Date }>(cacheKey);
     if (cached) return cached;
 
     const conn = await repo.getConnection(organizationId);
@@ -183,8 +183,20 @@ export const AirtableService = {
     if (!conn || !conn.accessToken) {
       result = { connected: false };
     } else {
-      const isExpired = conn.expiresAt && conn.expiresAt <= new Date();
-      result = { connected: true, expiresAt: conn.expiresAt, scope: conn.scope, isExpired };
+      const accessTokenExpired = conn.expiresAt && conn.expiresAt <= new Date();
+      if (accessTokenExpired) {
+        // Access token expired — silently refresh using the refresh token before reporting status.
+        // Only mark as truly expired if the refresh itself fails (refresh token also expired).
+        try {
+          await refreshAccessToken(organizationId, conn);
+          const refreshed = await repo.getConnection(organizationId);
+          result = { connected: true, expiresAt: refreshed?.expiresAt, scope: refreshed?.scope, isExpired: false, lastSyncedAt: conn.lastSyncedAt };
+        } catch {
+          result = { connected: true, expiresAt: conn.expiresAt, scope: conn.scope, isExpired: true, lastSyncedAt: conn.lastSyncedAt };
+        }
+      } else {
+        result = { connected: true, expiresAt: conn.expiresAt, scope: conn.scope, isExpired: false, lastSyncedAt: conn.lastSyncedAt };
+      }
     }
 
     await cache.set(cacheKey, result, 300); // 5-min TTL
@@ -372,16 +384,17 @@ export const AirtableService = {
     }
 
     let users = 0;
-    let usersSource: 'enterprise' | 'standard' | 'unavailable' = 'unavailable';
     try {
       const result = await AirtableService.syncUsers(organizationId);
       users = result.total;
-      usersSource = result.source;
     } catch {
       // Users endpoint may not be available in all plans
     }
 
-    return { bases, tables, records, users, usersSource };
+    await repo.updateConnection(organizationId, { lastSyncedAt: new Date() });
+    await cache.del(`airtable:status:${organizationId}`);
+
+    return { bases, tables, records, users };
   },
 
   // Cached repository accessors

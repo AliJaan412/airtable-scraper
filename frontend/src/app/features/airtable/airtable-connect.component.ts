@@ -112,6 +112,12 @@ import { AirtableActions } from '../../store/airtable/airtable.actions';
             <div>
               <div class="card-title">Data Sync</div>
               <div class="card-sub">Pull all Airtable data into the local database</div>
+              @if (!syncing()) {
+                <div class="last-synced-label">
+                  <mat-icon class="last-synced-icon">schedule</mat-icon>
+                  {{ lastSyncedLabel() }}
+                </div>
+              }
             </div>
             <button class="btn btn--primary" (click)="syncAll()" [disabled]="syncing()">
               @if (syncing()) {
@@ -215,6 +221,11 @@ import { AirtableActions } from '../../store/airtable/airtable.actions';
     }
     .card-title { font-size: 15px; font-weight: 600; color: var(--clr-text); margin: 0 0 4px; }
     .card-sub { font-size: 13px; color: var(--clr-text-muted); }
+    .last-synced-label {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 12px; color: var(--clr-text-muted); margin-top: 6px;
+    }
+    .last-synced-icon { font-size: 14px; width: 14px; height: 14px; }
 
     /* Connection row */
     .connection-row {
@@ -410,6 +421,17 @@ export class AirtableConnectComponent implements OnInit {
   readonly loading = toSignal(this.store.select(AirtableState.loading), { initialValue: false });
   readonly syncing = toSignal(this.store.select(AirtableState.syncing), { initialValue: false });
   readonly syncResults = toSignal(this.store.select(AirtableState.syncResults));
+  readonly lastSyncedAt = toSignal(this.store.select(AirtableState.lastSyncedAt));
+
+  lastSyncedLabel(): string {
+    const ts = this.lastSyncedAt();
+    if (!ts) return 'Never synced';
+    const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+    if (diff < 60) return 'Last synced just now';
+    if (diff < 3600) return `Last synced ${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `Last synced ${Math.floor(diff / 3600)}h ago`;
+    return `Last synced ${Math.floor(diff / 86400)}d ago`;
+  }
 
   syncResultItems() {
     const r = this.syncResults();
@@ -424,8 +446,21 @@ export class AirtableConnectComponent implements OnInit {
 
   ngOnInit(): void {
     this.checkCallback();
-    this.store.dispatch(new AirtableActions.LoadStatus());
+    this.store.dispatch(new AirtableActions.LoadStatus()).subscribe(() => {
+      this.autoSyncIfStale();
+    });
     this.store.dispatch(new AirtableActions.LoadBases());
+  }
+
+  private autoSyncIfStale(): void {
+    const status = this.status();
+    if (!status?.connected || status?.isExpired) return;
+    const lastSynced = status.lastSyncedAt;
+    if (!lastSynced) return; // never synced — user must do it manually first
+    const ageMinutes = (Date.now() - new Date(lastSynced).getTime()) / 60000;
+    if (ageMinutes > 30) {
+      this.store.dispatch(new AirtableActions.SyncAll());
+    }
   }
 
   private checkCallback(): void {

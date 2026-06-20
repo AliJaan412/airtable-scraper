@@ -189,7 +189,7 @@ export function parseHtmlActivities(
   ];
 
   const selector = candidateSelectors.join(', ');
-  const elements: cheerio.Element[] = [];
+  const elements: any[] = [];
 
   $(selector).each((_, el) => {
     // Avoid deeply nested duplicates — only include if not already inside another match
@@ -295,36 +295,43 @@ function parseDiffHtml(html: string): Array<{
     let oldValue: string | null = null;
 
     if (dataType === 'select') {
+      // Use text-decoration:line-through (semantic = "removed") rather than greenLight1/redLight1
+      // (color classes) — status colors are user-defined and change per workspace theme.
       $cell.find('span').each((_, span) => {
         const style = $(span).attr('style') ?? '';
-        // title attr on the inner div is the most reliable value
         const title =
           $(span).find('[title]').attr('title') ??
           $(span).find('.flex-auto').text().trim() ??
           '';
         if (!title) return;
-        if (style.includes('greenLight1')) newValue = title;
-        else if (style.includes('redLight1')) oldValue = title;
+        if (style.includes('line-through')) oldValue = title;
+        else newValue = title;
       });
     } else if (dataType === 'collaborator') {
-      if (valueClass.includes('nullToValue')) {
-        // Collaborator added (no prior value)
-        newValue = $cell.find('.flex-auto.truncate').first().text().trim() || null;
-      } else if (valueClass.includes('diff')) {
-        // Collaborator changed — green pill = new, red/line-through pill = old
-        $cell.find('.pill, [class*="pill"]').each((_, pill) => {
-          const pillStyle = $(pill).attr('style') ?? '';
-          const pillClass = $(pill).attr('class') ?? '';
-          const name = $(pill).find('.flex-auto.truncate').text().trim();
-          if (!name) return;
-          if (pillStyle.includes('greenLight1') || pillClass.includes('success')) newValue = name;
-          else if (pillStyle.includes('redLight1')) oldValue = name;
-        });
-        // Fallback: first person = new, none for old
-        if (!newValue && !oldValue) {
-          newValue = $cell.find('.flex-auto.truncate').first().text().trim() || null;
-        }
-      }
+      // Name lives in the last (innermost) .flex-auto.truncate — both the outer text wrapper
+      // and the inner name div share this class; .last() avoids doubling via .text() on the wrapper.
+      //
+      // Use the 'strikethrough' CSS class (semantic = "removed") to identify the old person.
+      // Color classes (colors-background-success / colors-background-negative) are avoided
+      // because they are theme-dependent and can change.
+      const collabName = (el: any): string => {
+        const $nameDiv = $(el).find('.flex-auto.truncate').last();
+        if (!$nameDiv.length) return '';
+        const direct = $nameDiv.contents().filter(function () {
+          return (this as any).nodeType === 3;
+        }).text().trim();
+        return direct || $nameDiv.clone().children().remove().end().text().trim();
+      };
+
+      // Works for both nullToValue (one pill, no strikethrough) and diff (two pills,
+      // one with strikethrough = old, one without = new).
+      $cell.find('.pill').each((_, pill) => {
+        const cls = $(pill).attr('class') ?? '';
+        const name = collabName(pill);
+        if (!name) return;
+        if (cls.includes('strikethrough')) oldValue = name;
+        else newValue = name;
+      });
     }
 
     if (newValue !== null || oldValue !== null) {

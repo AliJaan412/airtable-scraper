@@ -9,6 +9,7 @@ export interface IAirtableConnection extends Document {
   scope: string;
   codeVerifier?: string;
   state?: string;
+  lastSyncedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +24,7 @@ const AirtableConnectionSchema = new Schema<IAirtableConnection>(
     scope: { type: String },
     codeVerifier: { type: String },
     state: { type: String },
+    lastSyncedAt: { type: Date },
   },
   { timestamps: true },
 );

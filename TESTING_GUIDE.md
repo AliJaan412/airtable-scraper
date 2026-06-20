@@ -66,72 +66,76 @@ db.airtableconnections.findOne()
 
 Expected: document with `accessToken`, `refreshToken`, `expiresAt` fields, and **no** plaintext secrets echoed in logs.
 
-### A-4. Fetch Projects (Bases) — `GET /meta/bases`
+### A-4. Fetch Projects (Bases)
+
+After sync, all bases live in the `airtable_bases` collection. Query them through the unified data endpoint:
 
 ```bash
-curl http://localhost:3000/api/airtable/bases
+curl -s -X POST http://localhost:3000/api/raw-data/query \
+  -H "Content-Type: application/json" \
+  -d '{"collection":"airtable_bases","page":1,"pageSize":50}' | jq '._meta'
 ```
 
 Expected:
 - HTTP 200
-- JSON array of base objects (`id`, `name`, `permissionLevel`)
-- Same data visible in the UI bases list / dropdown
+- `_meta.total` > 0
+- Each item has `id`, `name`, `permissionLevel`
+- Same list visible in the UI bases dropdown
 
-Verify in MongoDB:
+### A-5. Fetch Tables
+
 ```bash
-db.airtablebases.find().count()   # must be > 0
+curl -s -X POST http://localhost:3000/api/raw-data/query \
+  -H "Content-Type: application/json" \
+  -d '{"collection":"airtable_tables","page":1,"pageSize":50}' | jq '._meta.total'
 ```
 
-### A-5. Fetch Tables — `GET /meta/bases/:baseId/tables`
-
-1. Pick a `baseId` from the bases returned above.
-2. Call:
+To filter by a specific base, add a `filters` object:
 
 ```bash
-curl http://localhost:3000/api/airtable/bases/<baseId>/tables
-```
-
-Expected:
-- HTTP 200
-- JSON array with `id`, `name`, `fields` for each table.
-
-Verify in MongoDB:
-```bash
-db.airtabletables.find({ baseId: "<baseId>" }).count()   # must be > 0
-```
-
-### A-6. Fetch Tickets (Records/Pages) with Pagination — `GET /:baseId/:tableId`
-
-1. Pick a `tableId` from step A-5.
-2. Call:
-
-```bash
-curl "http://localhost:3000/api/airtable/bases/<baseId>/tables/<tableId>/records"
+curl -s -X POST http://localhost:3000/api/raw-data/query \
+  -H "Content-Type: application/json" \
+  -d '{"collection":"airtable_tables","filters":{"baseId":"<baseId>"},"page":1,"pageSize":50}'
 ```
 
 Expected:
 - HTTP 200
-- All records returned (not just the first 100 page — pagination must be followed)
-- If the table has >100 rows, verify total stored count exceeds 100:
+- `_meta.total` > 0
+- Each item has `id`, `name`, `fields`
+
+### A-6. Fetch Records with Pagination
 
 ```bash
-db.airtablerecords.find({ tableId: "<tableId>" }).count()   # > 100 if table is large
+curl -s -X POST http://localhost:3000/api/raw-data/query \
+  -H "Content-Type: application/json" \
+  -d '{"collection":"airtable_records","filters":{"tableId":"<tableId>"},"page":1,"pageSize":100}'
 ```
 
-### A-7. Fetch Users — `GET /Users`
+To check a second page exists (i.e. pagination was followed during sync):
 
 ```bash
-curl http://localhost:3000/api/airtable/users
+curl -s -X POST http://localhost:3000/api/raw-data/query \
+  -H "Content-Type: application/json" \
+  -d '{"collection":"airtable_records","filters":{"tableId":"<tableId>"},"page":2,"pageSize":100}' \
+  | jq '._meta'
+```
+
+Expected:
+- `_meta.total` matches the full record count in Airtable (not capped at 100)
+- `_meta.totalPages` > 1 if the table has more than 100 rows
+
+### A-7. Fetch Users
+
+```bash
+curl -s -X POST http://localhost:3000/api/raw-data/query \
+  -H "Content-Type: application/json" \
+  -d '{"collection":"airtable_users","page":1,"pageSize":50}' | jq '._meta.total'
 ```
 
 Expected:
 - HTTP 200
-- JSON array of user objects.
-
-Verify in MongoDB:
-```bash
-db.airtableusers.find().count()   # must be > 0
-```
+- `_meta.total` > 0
+- Each item has `userId`, `name`, `email` (or equivalent fields synced from Airtable)
 
 ---
 

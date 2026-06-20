@@ -65,6 +65,7 @@ export interface ConnectionStatus {
   expiresAt?: string;
   scope?: string;
   isExpired?: boolean;
+  lastSyncedAt?: string;
 }
 
 export interface ScraperSession {
