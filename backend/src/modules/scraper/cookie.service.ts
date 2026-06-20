@@ -77,6 +77,12 @@ export const CookieService = {
     try {
       onStatusChange('authenticating');
 
+      // Clear any stored Airtable cookies from the persistent chrome-profile so that
+      // /login does not redirect straight to the dashboard (which produces url=/ and inputs=[]).
+      const cdpSession = await page.createCDPSession();
+      await cdpSession.send('Network.clearBrowserCookies');
+      await cdpSession.detach();
+
       // Navigate homepage first — jumping cold to /login is a bot signal.
       // Real browsers always load the root domain before the auth page.
       await page.goto('https://airtable.com', { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => null);
@@ -85,9 +91,20 @@ export const CookieService = {
       await page.goto('https://airtable.com/login', { waitUntil: 'networkidle2', timeout: 40000 });
 
       // Log where we landed — helps detect Cloudflare or verification pages
-      const pageTitle = await page.title();
-      const pageUrl = page.url();
+      let pageTitle = await page.title();
+      let pageUrl = page.url();
       console.log(`[Auth] Loaded — title: "${pageTitle}"  url: ${pageUrl}`);
+
+      // If /login redirected to the dashboard homepage, a stale session was still active.
+      // Navigate to the logout endpoint so /login renders the form on the next visit.
+      if (!pageUrl.includes('/login') && !pageUrl.includes('/verify') && !pageUrl.includes('captcha')) {
+        console.log('[Auth] Redirected away from login — logging out and retrying');
+        await page.goto('https://airtable.com/logout', { waitUntil: 'networkidle2', timeout: 15000 }).catch(() => null);
+        await page.goto('https://airtable.com/login', { waitUntil: 'networkidle2', timeout: 40000 });
+        pageTitle = await page.title();
+        pageUrl = page.url();
+        console.log(`[Auth] After logout retry — title: "${pageTitle}"  url: ${pageUrl}`);
+      }
 
       // ── Device verification ("Verify it's you") ────────────────────────────
       // Airtable shows this when the browser profile is new/unrecognised.
