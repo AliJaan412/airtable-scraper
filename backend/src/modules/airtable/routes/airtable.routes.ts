@@ -195,13 +195,80 @@ router.post('/disconnect', AirtableController.disconnect);
  *               properties:
  *                 success: { type: boolean, example: true }
  *                 data: { $ref: '#/components/schemas/SyncCounts' }
+ *       202:
+ *         description: Sync job queued — returns jobId immediately
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     jobId: { type: string }
+ *                     message: { type: string, example: 'Sync queued' }
  *       500:
- *         description: Sync failed (token expired, rate limit, network error)
+ *         description: Failed to enqueue sync job
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
 router.post('/sync', AirtableController.syncAll);
+
+/**
+ * @swagger
+ * /api/airtable/sync/status:
+ *   get:
+ *     summary: Get sync job status
+ *     description: Returns the current state of the sync job for this organisation (idle, waiting, active, completed, failed).
+ *     tags: [Airtable]
+ *     parameters:
+ *       - $ref: '#/components/parameters/OrgId'
+ *     responses:
+ *       200:
+ *         description: Job state
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     state: { type: string, example: 'active' }
+ *                     result: { type: object }
+ *                     failedReason: { type: string }
+ */
+router.get('/sync/status', AirtableController.getSyncStatus);
+
+/**
+ * @swagger
+ * /api/airtable/sync/counts:
+ *   get:
+ *     summary: Get document counts for all synced collections
+ *     description: Returns the number of bases, tables, records, and users stored in MongoDB for this organisation. Used by the frontend to show counts after a page refresh (NGXS state is in-memory only).
+ *     tags: [Airtable]
+ *     parameters:
+ *       - $ref: '#/components/parameters/OrgId'
+ *     responses:
+ *       200:
+ *         description: Document counts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data: { $ref: '#/components/schemas/SyncCounts' }
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ */
+router.get('/sync/counts', AirtableController.getSyncCounts);
 
 /**
  * @swagger

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Store } from '@ngxs/store';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AirtableState } from '../../store/airtable/airtable.state';
 import { AirtableActions } from '../../store/airtable/airtable.actions';
 
@@ -410,11 +410,13 @@ import { AirtableActions } from '../../store/airtable/airtable.actions';
     }
   `],
 })
-export class AirtableConnectComponent implements OnInit {
+export class AirtableConnectComponent implements OnInit, OnDestroy {
   private readonly store = inject(Store);
   private readonly snackBar = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+  private syncPoller?: ReturnType<typeof setInterval>;
 
   readonly status = toSignal(this.store.select(AirtableState.status));
   readonly bases = toSignal(this.store.select(AirtableState.bases), { initialValue: [] });
@@ -446,10 +448,40 @@ export class AirtableConnectComponent implements OnInit {
 
   ngOnInit(): void {
     this.checkCallback();
-    this.store.dispatch(new AirtableActions.LoadStatus()).subscribe(() => {
-      this.autoSyncIfStale();
-    });
+    this.store.dispatch(new AirtableActions.LoadStatus())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => { this.autoSyncIfStale(); });
     this.store.dispatch(new AirtableActions.LoadBases());
+    this.store.dispatch(new AirtableActions.LoadSyncCounts());
+  }
+
+  ngOnDestroy(): void {
+    this.clearSyncPoller();
+  }
+
+  private startSyncPoller(): void {
+    this.clearSyncPoller();
+    this.syncPoller = setInterval(() => {
+      this.store.dispatch(new AirtableActions.CheckSyncStatus())
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          if (!this.syncing()) {
+            this.clearSyncPoller();
+            const results = this.syncResults();
+            if (results && results['records'] !== undefined) {
+              this.snackBar.open(`Sync complete! ${results['records']} tickets synced.`, 'Close', { duration: 5000 });
+              this.store.dispatch(new AirtableActions.LoadBases());
+            }
+          }
+        });
+    }, 3000);
+  }
+
+  private clearSyncPoller(): void {
+    if (this.syncPoller) {
+      clearInterval(this.syncPoller);
+      this.syncPoller = undefined;
+    }
   }
 
   private autoSyncIfStale(): void {
@@ -485,13 +517,12 @@ export class AirtableConnectComponent implements OnInit {
   }
 
   syncAll(): void {
-    this.store.dispatch(new AirtableActions.SyncAll()).subscribe(() => {
-      const results = this.syncResults();
-      if (results) {
-        this.snackBar.open(`Sync complete! ${results['records']} tickets synced.`, 'Close', { duration: 5000 });
-        this.store.dispatch(new AirtableActions.LoadBases());
-      }
-    });
+    this.store.dispatch(new AirtableActions.SyncAll())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.snackBar.open('Sync started — running in background', 'Close', { duration: 4000 });
+        this.startSyncPoller();
+      });
   }
 
   refreshBases(): void {

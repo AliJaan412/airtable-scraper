@@ -3,7 +3,6 @@ import axios, { AxiosError } from 'axios';
 import { config } from '../../../config';
 import { AirtableRepository } from '../repositories/airtable.repository';
 import { IAirtableConnection } from '../schemas/airtable-connection.schema';
-import { AirtableRecordModel } from '../schemas/airtable-record.schema';
 import { cache } from '../../../common/cache';
 
 const repo = new AirtableRepository();
@@ -211,29 +210,32 @@ export const AirtableService = {
   // Data sync
   async syncBases(organizationId: string): Promise<number> {
     const data = await airtableGet<{ bases: any[] }>(organizationId, '/meta/bases');
-    for (const base of data.bases) {
-      await repo.upsertBase(organizationId, base.id, {
-        name: base.name,
-        permissionLevel: base.permissionLevel,
-        rawData: base,
-      });
-    }
-    // Invalidate bases cache after sync
+    await Promise.all(
+      data.bases.map((base) =>
+        repo.upsertBase(organizationId, base.id, {
+          name: base.name,
+          permissionLevel: base.permissionLevel,
+          rawData: base,
+        }),
+      ),
+    );
     await cache.del(`airtable:bases:${organizationId}`);
     return data.bases.length;
   },
 
   async syncTables(organizationId: string, baseId: string): Promise<number> {
     const data = await airtableGet<{ tables: any[] }>(organizationId, `/meta/bases/${baseId}/tables`);
-    for (const table of data.tables) {
-      await repo.upsertTable(organizationId, baseId, table.id, {
-        name: table.name,
-        primaryFieldId: table.primaryFieldId,
-        fields: table.fields || [],
-        views: table.views || [],
-        rawData: table,
-      });
-    }
+    await Promise.all(
+      data.tables.map((table) =>
+        repo.upsertTable(organizationId, baseId, table.id, {
+          name: table.name,
+          primaryFieldId: table.primaryFieldId,
+          fields: table.fields || [],
+          views: table.views || [],
+          rawData: table,
+        }),
+      ),
+    );
     await cache.del(`airtable:tables:${organizationId}:${baseId}`);
     return data.tables.length;
   },
@@ -252,12 +254,14 @@ export const AirtableService = {
         params,
       );
 
-      for (const record of data.records) {
-        await repo.upsertRecord(organizationId, baseId, tableId, record.id, {
-          fields: record.fields,
-          createdTime: record.createdTime ? new Date(record.createdTime) : undefined,
-        });
-      }
+      await Promise.all(
+        data.records.map((record) =>
+          repo.upsertRecord(organizationId, baseId, tableId, record.id, {
+            fields: record.fields,
+            createdTime: record.createdTime ? new Date(record.createdTime) : undefined,
+          }),
+        ),
+      );
 
       total += data.records.length;
       offset = data.offset;
@@ -275,17 +279,18 @@ export const AirtableService = {
     try {
       const usersData = await airtableGet<{ users: any[] }>(organizationId, '/meta/users');
       if (usersData?.users?.length) {
-        for (const user of usersData.users) {
-          const uid = user.id || user.userId;
-          if (!uid) continue;
-          await repo.upsertUser(organizationId, uid, {
-            name: user.name,
-            email: user.email,
-            scimEnabled: user.scimEnabled,
-            rawData: user,
-          });
-          total++;
-        }
+        const validUsers = usersData.users.filter((u) => u.id || u.userId);
+        await Promise.all(
+          validUsers.map((user) =>
+            repo.upsertUser(organizationId, user.id || user.userId, {
+              name: user.name,
+              email: user.email,
+              scimEnabled: user.scimEnabled,
+              rawData: user,
+            }),
+          ),
+        );
+        const total = validUsers.length;
         console.log(`[Users] source=enterprise  count=${total}`);
         return { total, source: 'enterprise' };
       }
@@ -302,6 +307,7 @@ export const AirtableService = {
         rawData: whoami,
       });
       total++;
+      console.log(`[Users] source=whoami  ${total} user(s) added`);
     }
 
     // Tier 2: per-base collaborators (Pro/Enterprise plans only — 404 on Trial/Free)
@@ -315,16 +321,18 @@ export const AirtableService = {
         );
         const list: any[] = collabData?.collaborators ?? collabData?.users ?? [];
         collaboratorsAvailable = true;
-        for (const user of list) {
-          const uid = user.id || user.userId;
-          if (!uid) continue;
-          await repo.upsertUser(organizationId, uid, {
-            name: user.name,
-            email: user.email,
-            rawData: user,
-          });
-          total++;
-        }
+        const validCollabs = list.filter((u) => u.id || u.userId);
+        await Promise.all(
+          validCollabs.map((user) =>
+            repo.upsertUser(organizationId, user.id || user.userId, {
+              name: user.name,
+              email: user.email,
+              rawData: user,
+            }),
+          ),
+        );
+        total += validCollabs.length;
+        console.log(`[Users] source=collaborators (base ${base.baseId})  count=${validCollabs.length}`);
       } catch (err: any) {
         const status = err?.response?.status;
         if (status === 404 || status === 403) {
@@ -339,9 +347,10 @@ export const AirtableService = {
     // Works on all plans — Airtable embeds {id, email, name} inside collaborator fields.
     if (!collaboratorsAvailable) {
       const seenIds = new Set<string>([whoami?.id].filter(Boolean));
-      const records = await AirtableRecordModel.find({ organizationId }).lean();
+      const cursor = repo.streamRecords(organizationId);
 
-      for (const record of records) {
+      const toUpsert: Array<{ uid: string; name: string; email: string; rawData: any }> = [];
+      for await (const record of cursor) {
         for (const value of Object.values(record.fields ?? {})) {
           const candidates = Array.isArray(value) ? value : [value];
           for (const item of candidates) {
@@ -351,13 +360,18 @@ export const AirtableService = {
               const name: string = item.name;
               if (uid && email && !seenIds.has(uid)) {
                 seenIds.add(uid);
-                await repo.upsertUser(organizationId, uid, { name, email, rawData: item });
-                total++;
+                toUpsert.push({ uid, name, email, rawData: item });
               }
             }
           }
         }
       }
+      await Promise.all(
+        toUpsert.map(({ uid, name, email, rawData }) =>
+          repo.upsertUser(organizationId, uid, { name, email, rawData }),
+        ),
+      );
+      total += toUpsert.length;
       console.log(`[Users] source=standard (record-field extraction)  count=${total}`);
     } else {
       console.log(`[Users] source=standard (whoami + collaborators)  count=${total}`);
@@ -366,23 +380,33 @@ export const AirtableService = {
   },
 
   async syncAll(organizationId: string): Promise<Record<string, number>> {
+    // Step 1: sync base metadata first (sequential — single API call)
     const bases = await AirtableService.syncBases(organizationId);
     const baseDocs = await repo.getBases(organizationId);
 
-    let tables = 0;
-    let records = 0;
+    // Step 2: sync tables + records per base in parallel
+    // Each base has its own rate-limit bucket so cross-base parallelism is safe
+    const baseResults = await Promise.all(
+      baseDocs.map(async (base) => {
+        // Tables must finish before records (need tableIds)
+        const t = await AirtableService.syncTables(organizationId, base.baseId);
+        const tableDocs = await repo.getTables(organizationId, base.baseId);
 
-    for (const base of baseDocs) {
-      const t = await AirtableService.syncTables(organizationId, base.baseId);
-      tables += t;
+        // Records for all tables within this base run sequentially
+        // (same base = same rate-limit bucket)
+        let r = 0;
+        for (const table of tableDocs) {
+          r += await AirtableService.syncRecords(organizationId, base.baseId, table.tableId);
+        }
 
-      const tableDocs = await repo.getTables(organizationId, base.baseId);
-      for (const table of tableDocs) {
-        const r = await AirtableService.syncRecords(organizationId, base.baseId, table.tableId);
-        records += r;
-      }
-    }
+        return { tables: t, records: r };
+      }),
+    );
 
+    const tables = baseResults.reduce((sum, b) => sum + b.tables, 0);
+    const records = baseResults.reduce((sum, b) => sum + b.records, 0);
+
+    // Step 3: sync users (independent of bases/tables — runs after to avoid extra rate-limit pressure)
     let users = 0;
     try {
       const result = await AirtableService.syncUsers(organizationId);
@@ -412,4 +436,5 @@ export const AirtableService = {
   getRecords: (orgId: string, filter: any, page: number, pageSize: number) =>
     repo.getRecords(orgId, filter, page, pageSize),
   getUsers: (orgId: string) => repo.getUsers(orgId),
+  getCounts: (orgId: string) => repo.getCounts(orgId),
 };

@@ -12,6 +12,7 @@ import { closeRedis, isRedisCompatible } from './common/redis';
 import { requestLogger } from './common/middleware/request-logger';
 import { orgContext } from './common/middleware/org-context';
 import { startScraperWorker, closeScraperQueue } from './modules/scraper/queues/scraper.queue';
+import { startAirtableWorker, closeAirtableQueue } from './modules/airtable/queues/airtable.queue';
 
 import airtableRouter from './modules/airtable/routes/airtable.routes';
 import scraperRouter from './modules/scraper/routes/scraper.routes';
@@ -23,9 +24,10 @@ async function bootstrap() {
   const redisReady = await isRedisCompatible();
   if (redisReady) {
     startScraperWorker();
-    console.log('[Queue] Scraper worker started (Redis connected)');
+    startAirtableWorker();
+    console.log('[Queue] Scraper and Airtable workers started (Redis connected)');
   } else {
-    console.warn('[Queue] Scraper queue disabled. Jobs will run inline without retry.');
+    console.warn('[Queue] Queues disabled. Jobs will run inline without retry.');
   }
 
   const app = express();
@@ -90,6 +92,7 @@ async function bootstrap() {
 async function shutdown(signal: string) {
   console.log(`[Server] ${signal} received — shutting down gracefully`);
   await closeScraperQueue();
+  await closeAirtableQueue();
   await closeRedis();
   process.exit(0);
 }

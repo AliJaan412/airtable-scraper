@@ -19,8 +19,16 @@ export class AirtableService {
     return this.api.post<void>('/airtable/disconnect').pipe(map(() => undefined));
   }
 
-  syncAll(): Observable<Record<string, number>> {
-    return this.api.post<Record<string, number>>('/airtable/sync').pipe(map((r) => r.data));
+  syncAll(): Observable<{ jobId: string }> {
+    return this.api.post<{ jobId: string }>('/airtable/sync').pipe(map((r) => r.data));
+  }
+
+  getSyncStatus(): Observable<{ state: string; result?: Record<string, number>; failedReason?: string }> {
+    return this.api.get<any>('/airtable/sync/status').pipe(map((r) => r.data));
+  }
+
+  getSyncCounts(): Observable<Record<string, number>> {
+    return this.api.get<Record<string, number>>('/airtable/sync/counts').pipe(map((r) => r.data));
   }
 
   syncBases(): Observable<{ synced: number }> {

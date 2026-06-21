@@ -19,14 +19,17 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AgGridAngular } from 'ag-grid-angular';
 import {
   ColDef,
   GridReadyEvent,
   GridApi,
+  CellClickedEvent,
   ModuleRegistry,
   AllCommunityModule,
 } from 'ag-grid-community';
+import { FieldsDialogComponent } from './fields-dialog.component';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { FormControl } from '@angular/forms';
 
@@ -52,7 +55,9 @@ ModuleRegistry.registerModules([AllCommunityModule]);
     MatChipsModule,
     MatTooltipModule,
     MatSnackBarModule,
+    MatDialogModule,
     AgGridAngular,
+    FieldsDialogComponent,
   ],
   template: `
     <div class="page-container">
@@ -157,6 +162,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
             [animateRows]="true"
             [enableCellTextSelection]="true"
             (gridReady)="onGridReady($event)"
+            (cellClicked)="onCellClicked($event)"
             (paginationChanged)="onPaginationChanged($event)"
             (sortChanged)="onSortChanged($event)"
             (filterChanged)="onFilterChanged()"
@@ -244,6 +250,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 export class RawDataComponent implements OnInit, OnDestroy {
   private readonly rawDataSvc = inject(RawDataService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
   private readonly destroy$ = new Subject<void>();
 
   readonly collectionLabels = COLLECTION_LABELS;
@@ -308,6 +315,19 @@ export class RawDataComponent implements OnInit, OnDestroy {
 
   onGridReady(event: GridReadyEvent): void {
     this.gridApi = event.api;
+  }
+
+  onCellClicked(event: CellClickedEvent): void {
+    const value = event.value;
+    if (value === null || value === undefined) return;
+    if (typeof value !== 'object' && !Array.isArray(value)) return;
+
+    this.dialog.open(FieldsDialogComponent, {
+      data: { title: event.colDef.headerName ?? event.column.getId(), value },
+      width: '520px',
+      maxHeight: '80vh',
+      panelClass: 'fields-dialog-panel',
+    });
   }
 
   onIntegrationChange(): void {
@@ -424,7 +444,11 @@ export class RawDataComponent implements OnInit, OnDestroy {
         if (field === 'newValue' || field === 'oldValue') { def.minWidth = 130; def.maxWidth = 200; }
         if (field === 'authoredBy') { def.minWidth = 130; def.maxWidth = 200; }
         if (field === 'status') { def.maxWidth = 130; }
-        if (field === 'fields' || field === 'views') { def.minWidth = 200; def.maxWidth = 320; }
+        if (field === 'fields' || field === 'views') {
+          def.minWidth = 200;
+          def.maxWidth = 320;
+          def.cellStyle = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' };
+        }
         if (field === 'progress') { def.maxWidth = 130; }
         if (field.toLowerCase().includes('id') && field !== '_id') { def.maxWidth = 180; }
 
@@ -445,6 +469,7 @@ export class RawDataComponent implements OnInit, OnDestroy {
 
     // ── Array of named objects (fields, views, choices…) ──────────────────────
     if (Array.isArray(value)) {
+
       if (value.length === 0) return '<span style="color:#9e9e9e">—</span>';
       const names = value
         .map((item: any) => item?.name ?? item?.label ?? item?.title ?? null)

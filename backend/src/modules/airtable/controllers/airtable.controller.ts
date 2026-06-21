@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AirtableService } from '../services/airtable.service';
+import { enqueueAirtableSyncJob, getAirtableSyncStatus } from '../queues/airtable.queue';
 import { sendSuccess, sendError } from '../../../common/response';
 import { config } from '../../../config';
 
@@ -52,8 +53,28 @@ export const AirtableController = {
   async syncAll(req: Request, res: Response): Promise<void> {
     try {
       const organizationId = (req as any).organizationId;
-      const counts = await AirtableService.syncAll(organizationId);
-      sendSuccess(res, counts, undefined, 200);
+      const jobId = await enqueueAirtableSyncJob(organizationId);
+      sendSuccess(res, { jobId, message: 'Sync queued' }, undefined, 202);
+    } catch (err: any) {
+      sendError(res, err.message);
+    }
+  },
+
+  async getSyncStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const organizationId = (req as any).organizationId;
+      const status = await getAirtableSyncStatus(organizationId);
+      sendSuccess(res, status ?? { state: 'idle' });
+    } catch (err: any) {
+      sendError(res, err.message);
+    }
+  },
+
+  async getSyncCounts(req: Request, res: Response): Promise<void> {
+    try {
+      const organizationId = (req as any).organizationId;
+      const counts = await AirtableService.getCounts(organizationId);
+      sendSuccess(res, counts);
     } catch (err: any) {
       sendError(res, err.message);
     }

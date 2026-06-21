@@ -136,17 +136,10 @@ export class AirtableState {
 
   @Action(AirtableActions.SyncAll)
   syncAll(ctx: StateContext<AirtableStateModel>) {
-    ctx.patchState({ syncing: true, error: null });
+    ctx.patchState({ syncing: true, error: null, syncResults: null });
     return this.airtableSvc.syncAll().pipe(
-      tap((results) => {
-        const now = new Date().toISOString();
-        const currentStatus = ctx.getState().status;
-        ctx.patchState({
-          syncing: false,
-          syncResults: results,
-          basesLoaded: false,
-          status: currentStatus ? { ...currentStatus, lastSyncedAt: now } : currentStatus,
-        });
+      tap(() => {
+        // Job queued — keep syncing: true; component polls CheckSyncStatus until done
       }),
       catchError((err) => {
         ctx.patchState({ syncing: false, error: err?.error?.message || 'Sync failed — check your connection' });
@@ -155,8 +148,42 @@ export class AirtableState {
     );
   }
 
+  @Action(AirtableActions.CheckSyncStatus)
+  checkSyncStatus(ctx: StateContext<AirtableStateModel>) {
+    return this.airtableSvc.getSyncStatus().pipe(
+      tap((status) => {
+        if (status.state === 'completed' && status.result) {
+          const now = new Date().toISOString();
+          const currentStatus = ctx.getState().status;
+          ctx.patchState({
+            syncing: false,
+            syncResults: status.result,
+            basesLoaded: false,
+            status: currentStatus ? { ...currentStatus, lastSyncedAt: now } : currentStatus,
+          });
+        } else if (status.state === 'failed') {
+          ctx.patchState({ syncing: false, error: status.failedReason || 'Sync failed' });
+        }
+      }),
+      catchError(() => EMPTY),
+    );
+  }
+
+  @Action(AirtableActions.LoadSyncCounts)
+  loadSyncCounts(ctx: StateContext<AirtableStateModel>) {
+    if (ctx.getState().syncResults) return; // already populated (e.g. fresh sync just completed)
+    return this.airtableSvc.getSyncCounts().pipe(
+      tap((counts) => {
+        if (counts && Object.keys(counts).length > 0) {
+          ctx.patchState({ syncResults: counts });
+        }
+      }),
+      catchError(() => EMPTY),
+    );
+  }
+
   @Action(AirtableActions.ClearCache)
   clearCache(ctx: StateContext<AirtableStateModel>) {
-    ctx.patchState({ statusLoaded: false, basesLoaded: false });
+    ctx.patchState({ statusLoaded: false, basesLoaded: false, syncResults: null });
   }
 }

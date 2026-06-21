@@ -19,6 +19,14 @@ export namespace AirtableActions {
     static readonly type = '[Airtable] Sync All';
   }
 
+  export class CheckSyncStatus {
+    static readonly type = '[Airtable] Check Sync Status';
+  }
+
+  export class LoadSyncCounts {
+    static readonly type = '[Airtable] Load Sync Counts';
+  }
+
   export class ClearCache {
     static readonly type = '[Airtable] Clear Cache';
   }

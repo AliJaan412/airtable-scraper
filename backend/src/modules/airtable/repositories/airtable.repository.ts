@@ -93,6 +93,10 @@ export class AirtableRepository {
     return AirtableRecordModel.find({ organizationId, baseId, tableId });
   }
 
+  streamRecords(organizationId: string) {
+    return AirtableRecordModel.find({ organizationId }).lean().cursor();
+  }
+
   // Users
   async upsertUser(organizationId: string, userId: string, data: Partial<IAirtableUser>): Promise<IAirtableUser> {
     return AirtableUserModel.findOneAndUpdate(
@@ -104,5 +108,15 @@ export class AirtableRepository {
 
   async getUsers(organizationId: string): Promise<IAirtableUser[]> {
     return AirtableUserModel.find({ organizationId }).sort({ name: 1 });
+  }
+
+  async getCounts(organizationId: string): Promise<{ bases: number; tables: number; records: number; users: number }> {
+    const [bases, tables, records, users] = await Promise.all([
+      AirtableBaseModel.countDocuments({ organizationId }),
+      AirtableTableModel.countDocuments({ organizationId }),
+      AirtableRecordModel.countDocuments({ organizationId }),
+      AirtableUserModel.countDocuments({ organizationId }),
+    ]);
+    return { bases, tables, records, users };
   }
 }

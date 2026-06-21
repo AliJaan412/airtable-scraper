@@ -105,3 +105,116 @@ html, body {
 
 // ── Snackbar ─────────────────────────────────────────────────────────────────
 .error-snack { background: var(--clr-danger); color: white; }
+
+// ── Utility ──────────────────────────────────────────────────────────────────
+.w-full { width: 100%; }
+
+// ── Buttons ──────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 7px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: opacity 0.15s, background 0.15s;
+  white-space: nowrap;
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+  &.btn--primary { background: var(--clr-primary); color: var(--clr-navy); font-weight: 600; }
+  &.btn--primary:not(:disabled):hover { background: var(--clr-primary-dark); color: white; }
+
+  &.btn--accent { background: var(--clr-primary-dark); color: white; }
+  &.btn--accent:not(:disabled):hover { background: var(--clr-navy-mid); }
+
+  &.btn--danger { background: var(--clr-surface); color: var(--clr-danger); border-color: var(--clr-danger-border); }
+  &.btn--danger:not(:disabled):hover { background: var(--clr-danger-bg); }
+
+  &.btn--outline { background: var(--clr-surface); color: var(--clr-text-mid); border-color: var(--clr-border); }
+  &.btn--outline:not(:disabled):hover { background: var(--clr-primary-subtle); }
+
+  &.btn--warn { background: var(--clr-surface); color: var(--clr-orange-dark); border-color: var(--clr-orange-border); }
+  &.btn--warn:not(:disabled):hover { background: var(--clr-orange-bg); }
+}
+
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+// ── CSS spinner (inline-safe, used inside buttons) ────────────────────────────
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.65s linear infinite;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+// ── Status banners ────────────────────────────────────────────────────────────
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: 8px;
+  font-size: 14px;
+
+  &.status-banner--info {
+    background: var(--clr-primary-light);
+    color: var(--clr-primary-dark);
+  }
+
+  &.status-banner--success {
+    background: var(--clr-success-bg);
+    color: var(--clr-success);
+    mat-icon { color: var(--clr-success); font-size: 22px; width: 22px; height: 22px; }
+  }
+
+  &.status-banner--expired {
+    background: var(--clr-orange-bg);
+    color: #9a3412;
+    mat-icon { color: var(--clr-orange); font-size: 22px; width: 22px; height: 22px; flex-shrink: 0; }
+  }
+
+  &.status-banner--warn {
+    background: var(--clr-warn-bg);
+    color: #b45309;
+    mat-icon { color: #b45309; font-size: 22px; width: 22px; height: 22px; flex-shrink: 0; }
+  }
+}
+
+.banner-sub { font-size: 12px; margin-top: 2px; opacity: 0.8; }
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--clr-danger);
+  background: var(--clr-danger-bg);
+
+  mat-icon { font-size: 17px; width: 17px; height: 17px; }
+  &.alert--warn { color: #b45309; background: var(--clr-warn-bg); }
+}
+
+// ── Form helpers ──────────────────────────────────────────────────────────────
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  &.is-loading { opacity: 0.45; pointer-events: none; }
+}
