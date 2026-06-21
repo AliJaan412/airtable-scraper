@@ -2,8 +2,6 @@
 
 Full-stack app that connects to Airtable via OAuth, syncs data into MongoDB, scrapes revision history, and displays everything in an AG Grid UI.
 
-> For detailed technical notes, architecture decisions, issues faced, and backlog — see [DEVELOPMENT.md](./DEVELOPMENT.md)
-
 ---
 
 ## Stack

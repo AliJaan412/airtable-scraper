@@ -1,7 +1,7 @@
 {
   "name": "sred-io-backend",
   "version": "1.0.0",
-  "description": "APAC-ATS Airtable Integration Backend",
+  "description": "Airtable Integration Backend",
   "private": true,
   "engines": {
     "node": ">=22.0.0"

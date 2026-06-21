@@ -47,6 +47,9 @@ const ORG_ID = 'test-org';
 const SESSION_ID = 'session-abc-123';
 const COOKIES = 'airtable_session=abc; airtable_user=xyz';
 
+const mockBrowser = { on: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
+const mockPage = {};
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockUpsertSession.mockResolvedValue({});
@@ -136,7 +139,8 @@ describe('ScraperService.runScraper', () => {
     mockGetBases.mockResolvedValue([{ baseId: 'base1' }]);
     mockGetTables.mockResolvedValue([{ tableId: 'tbl1' }]);
     mockGetRecordsByTable.mockResolvedValue([{ recordId: 'rec1' }]);
-    MockedCookieService.fetchRevisionHistory = jest.fn().mockResolvedValue('<html></html>');
+    MockedCookieService.takeLiveBrowser = jest.fn().mockReturnValue({ browser: mockBrowser, page: mockPage });
+    MockedCookieService.fetchRevisionHistoryInPage = jest.fn().mockResolvedValue('<html></html>');
     mockedParser.parseActivities = jest.fn().mockReturnValue([]);
 
     await ScraperService.runScraper(ORG_ID, SESSION_ID);

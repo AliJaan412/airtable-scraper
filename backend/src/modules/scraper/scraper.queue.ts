@@ -17,7 +17,7 @@ let scraperWorker: Worker | null = null;
 
 export function getScraperQueue(): Queue {
   if (!scraperQueue) {
-    scraperQueue = new Queue(QUEUE_NAME, { connection: getRedisClient() });
+    scraperQueue = new Queue(QUEUE_NAME, { connection: getRedisClient() as any });
   }
   return scraperQueue;
 }
@@ -51,7 +51,7 @@ export function startScraperWorker(): Worker {
       await ScraperService.runScraper(organizationId, sessionId);
     },
     {
-      connection: getRedisClient(),
+      connection: getRedisClient() as any,
       concurrency: 2, // max 2 scraper jobs in parallel
     },
   );

@@ -16,7 +16,7 @@ export interface IAirtableConnection extends Document {
 
 const AirtableConnectionSchema = new Schema<IAirtableConnection>(
   {
-    organizationId: { type: String, required: true, index: true },
+    organizationId: { type: String, required: true },
     accessToken: { type: String, required: true },
     refreshToken: { type: String, required: true },
     tokenType: { type: String, default: 'Bearer' },
