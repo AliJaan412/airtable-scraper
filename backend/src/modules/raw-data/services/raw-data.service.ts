@@ -20,6 +20,30 @@ const ALLOWED_COLLECTIONS = [
   'scraper_sessions',
 ];
 
+async function discoverStringFields(col: any, organizationId: string): Promise<string[]> {
+  const sample = await col.findOne({ organizationId });
+  if (!sample) return [];
+
+  const fields: string[] = [];
+
+  for (const [key, val] of Object.entries(sample)) {
+    if (key === '_id' || key === '__v') continue;
+
+    if (typeof val === 'string') {
+      fields.push(key);
+    } else if (val && typeof val === 'object' && !Array.isArray(val)) {
+      // One level deep — catches nested objects like `fields.Name`, `fields.Status` in airtable_records
+      for (const [nestedKey, nestedVal] of Object.entries(val as object)) {
+        if (typeof nestedVal === 'string') {
+          fields.push(`${key}.${nestedKey}`);
+        }
+      }
+    }
+  }
+
+  return fields;
+}
+
 export const RawDataService = {
   getAllowedCollections(): string[] {
     return ALLOWED_COLLECTIONS;
@@ -49,20 +73,13 @@ export const RawDataService = {
       }
     }
 
-    // Full-text search across string fields
+    // Full-text search — discover string fields dynamically from a document
     if (search && search.trim()) {
-      const regex = { $regex: search.trim(), $options: 'i' };
-      query.$or = [
-        { name: regex },
-        { 'fields.Name': regex },
-        { recordId: regex },
-        { tableId: regex },
-        { baseId: regex },
-        { columnType: regex },
-        { oldValue: regex },
-        { newValue: regex },
-        { authoredBy: regex },
-      ];
+      const searchFields = await discoverStringFields(col, organizationId);
+      if (searchFields.length > 0) {
+        const regex = { $regex: search.trim(), $options: 'i' };
+        query.$or = searchFields.map((field) => ({ [field]: regex }));
+      }
     }
 
     // Sort

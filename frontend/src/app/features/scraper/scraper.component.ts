@@ -82,7 +82,12 @@ import type { ChangelogStats } from '../../store/scraper/scraper.state';
 
             <div class="step-body">
               @if (!session() || session()?.status === 'idle' || session()?.status === 'failed') {
-                @if (isAuthExpired()) {
+                @if (authLoading()) {
+                  <div class="status-banner status-banner--info">
+                    <mat-spinner diameter="18"></mat-spinner>
+                    <span>Launching browser and logging in&hellip;</span>
+                  </div>
+                } @else if (isAuthExpired()) {
                   <div class="status-banner status-banner--expired">
                     <mat-icon>lock_clock</mat-icon>
                     <div>
@@ -141,13 +146,19 @@ import type { ChangelogStats } from '../../store/scraper/scraper.state';
               @if (!session() || session()?.status === 'idle' || session()?.status === 'failed') {
                 <button
                   class="btn w-full"
-                  [class.btn--primary]="!isAuthExpired()"
-                  [class.btn--warn]="isAuthExpired()"
+                  [class.btn--primary]="!isAuthExpired() && !authLoading()"
+                  [class.btn--warn]="isAuthExpired() && !authLoading()"
+                  [class.btn--outline]="authLoading()"
                   (click)="startAuth()"
                   [disabled]="!email || !password || authLoading()"
                 >
-                  <mat-icon>{{ isAuthExpired() ? 'refresh' : 'fingerprint' }}</mat-icon>
-                  {{ isAuthExpired() ? 'Re-authenticate' : 'Start Authentication' }}
+                  @if (authLoading()) {
+                    <mat-spinner diameter="16" style="display:inline-block;vertical-align:middle;margin-right:6px;"></mat-spinner>
+                    Connecting&hellip;
+                  } @else {
+                    <mat-icon>{{ isAuthExpired() ? 'refresh' : 'fingerprint' }}</mat-icon>
+                    {{ isAuthExpired() ? 'Re-authenticate' : 'Start Authentication' }}
+                  }
                 </button>
               } @else if (session()?.status === 'awaiting_mfa' || session()?.status === 'awaiting_captcha' || session()?.status === 'running' || session()?.status === 'completed') {
                 <div class="btn-row">
