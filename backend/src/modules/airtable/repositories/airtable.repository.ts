@@ -1,8 +1,8 @@
-import { AirtableConnectionModel, IAirtableConnection } from './schemas/airtable-connection.schema';
-import { AirtableBaseModel, IAirtableBase } from './schemas/airtable-base.schema';
-import { AirtableTableModel, IAirtableTable } from './schemas/airtable-table.schema';
-import { AirtableRecordModel, IAirtableRecord } from './schemas/airtable-record.schema';
-import { AirtableUserModel, IAirtableUser } from './schemas/airtable-user.schema';
+import { AirtableConnectionModel, IAirtableConnection } from '../schemas/airtable-connection.schema';
+import { AirtableBaseModel, IAirtableBase } from '../schemas/airtable-base.schema';
+import { AirtableTableModel, IAirtableTable } from '../schemas/airtable-table.schema';
+import { AirtableRecordModel, IAirtableRecord } from '../schemas/airtable-record.schema';
+import { AirtableUserModel, IAirtableUser } from '../schemas/airtable-user.schema';
 
 export class AirtableRepository {
   // Connection

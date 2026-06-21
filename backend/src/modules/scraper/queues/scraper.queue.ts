@@ -1,6 +1,6 @@
-import { Queue, Worker, Job, QueueEvents } from 'bullmq';
-import { getRedisClient } from '../../common/redis';
-import { ScraperService } from './scraper.service';
+import { Queue, Worker, Job } from 'bullmq';
+import { getRedisClient } from '../../../common/redis';
+import { ScraperService } from '../services/scraper.service';
 
 const QUEUE_NAME = 'scraper';
 

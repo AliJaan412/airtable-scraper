@@ -11,11 +11,11 @@ import { connectDatabase } from './common/db';
 import { closeRedis, isRedisCompatible } from './common/redis';
 import { requestLogger } from './common/middleware/request-logger';
 import { orgContext } from './common/middleware/org-context';
-import { startScraperWorker, closeScraperQueue } from './modules/scraper/scraper.queue';
+import { startScraperWorker, closeScraperQueue } from './modules/scraper/queues/scraper.queue';
 
-import airtableRouter from './modules/airtable/airtable.controller';
-import scraperRouter from './modules/scraper/scraper.controller';
-import rawDataRouter from './modules/raw-data/raw-data.controller';
+import airtableRouter from './modules/airtable/routes/airtable.routes';
+import scraperRouter from './modules/scraper/routes/scraper.routes';
+import rawDataRouter from './modules/raw-data/routes/raw-data.routes';
 
 async function bootstrap() {
   await connectDatabase();

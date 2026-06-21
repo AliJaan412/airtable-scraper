@@ -1,6 +1,6 @@
-import { ChangelogModel, IChangelog } from './schemas/changelog.schema';
-import { ScraperSessionModel, IScraperSession, ScraperStatus } from './schemas/scraper-session.schema';
-import { ParsedActivity } from './changelog.parser';
+import { ChangelogModel, IChangelog } from '../schemas/changelog.schema';
+import { ScraperSessionModel, IScraperSession, ScraperStatus } from '../schemas/scraper-session.schema';
+import { ParsedActivity } from '../parsers/changelog.parser';
 
 export class ScraperRepository {
   async upsertSession(sessionId: string, data: Partial<IScraperSession>): Promise<IScraperSession> {

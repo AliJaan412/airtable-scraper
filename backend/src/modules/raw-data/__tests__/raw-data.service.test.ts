@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { RawDataService } from '../raw-data.service';
+import { RawDataService } from '../services/raw-data.service';
 
 jest.mock('mongoose', () => {
   const actual = jest.requireActual('mongoose');

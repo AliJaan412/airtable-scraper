@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { CookieService } from './cookie.service';
-import { ScraperRepository } from './scraper.repository';
-import { AirtableRepository } from '../airtable/airtable.repository';
-import { parseActivities } from './changelog.parser';
+import { ScraperRepository } from '../repositories/scraper.repository';
+import { AirtableRepository } from '../../airtable/repositories/airtable.repository';
+import { parseActivities } from '../parsers/changelog.parser';
 
 const scraperRepo = new ScraperRepository();
 const airtableRepo = new AirtableRepository();

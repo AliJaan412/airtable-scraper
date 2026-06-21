@@ -1,8 +1,8 @@
-import { CookieService } from '../cookie.service';
-import * as parser from '../changelog.parser';
+import { CookieService } from '../services/cookie.service';
+import * as parser from '../parsers/changelog.parser';
 
-jest.mock('../cookie.service');
-jest.mock('../changelog.parser');
+jest.mock('../services/cookie.service');
+jest.mock('../parsers/changelog.parser');
 
 // Factory mocks for module-level singletons
 const mockGetSession = jest.fn();
@@ -17,7 +17,7 @@ const mockGetBases = jest.fn();
 const mockGetTables = jest.fn();
 const mockGetRecordsByTable = jest.fn();
 
-jest.mock('../scraper.repository', () => ({
+jest.mock('../repositories/scraper.repository', () => ({
   ScraperRepository: jest.fn().mockImplementation(() => ({
     getSession: mockGetSession,
     upsertSession: mockUpsertSession,
@@ -29,7 +29,7 @@ jest.mock('../scraper.repository', () => ({
   })),
 }));
 
-jest.mock('../../airtable/airtable.repository', () => ({
+jest.mock('../../airtable/repositories/airtable.repository', () => ({
   AirtableRepository: jest.fn().mockImplementation(() => ({
     getBases: mockGetBases,
     getTables: mockGetTables,
@@ -38,7 +38,7 @@ jest.mock('../../airtable/airtable.repository', () => ({
 }));
 
 // Import AFTER mocks are registered
-import { ScraperService } from '../scraper.service';
+import { ScraperService } from '../services/scraper.service';
 
 const MockedCookieService = CookieService as jest.Mocked<typeof CookieService>;
 const mockedParser = parser as jest.Mocked<typeof parser>;

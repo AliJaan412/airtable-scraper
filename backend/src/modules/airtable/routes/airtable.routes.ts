@@ -1,7 +1,5 @@
-import { Router, Request, Response } from 'express';
-import { AirtableService } from './airtable.service';
-import { sendSuccess, sendError } from '../../common/response';
-import { config } from '../../config';
+import { Router } from 'express';
+import { AirtableController } from '../controllers/airtable.controller';
 
 const router = Router();
 
@@ -68,16 +66,7 @@ const router = Router();
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/oauth/authorize', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const { url, state, codeVerifier } = AirtableService.initiateOAuth(organizationId);
-    await AirtableService.saveOAuthState(organizationId, state, codeVerifier);
-    sendSuccess(res, { url });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/oauth/authorize', AirtableController.initiateOAuth);
 
 /**
  * @swagger
@@ -108,18 +97,7 @@ router.get('/oauth/authorize', async (req: Request, res: Response) => {
  *       302:
  *         description: Redirects to frontend with `?connected=true` or `?error=<message>`
  */
-router.get('/oauth/callback', async (req: Request, res: Response) => {
-  try {
-    const { code, state, error } = req.query as Record<string, string>;
-    if (error) {
-      return res.redirect(`${config.frontendUrl}/integrations/airtable?error=${encodeURIComponent(error)}`);
-    }
-    await AirtableService.exchangeCode(code, state);
-    res.redirect(`${config.frontendUrl}/integrations/airtable?connected=true`);
-  } catch (err: any) {
-    res.redirect(`${config.frontendUrl}/integrations/airtable?error=${encodeURIComponent(err.message)}`);
-  }
-});
+router.get('/oauth/callback', AirtableController.handleOAuthCallback);
 
 /**
  * @swagger
@@ -162,15 +140,7 @@ router.get('/oauth/callback', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/status', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const status = await AirtableService.getConnectionStatus(organizationId);
-    sendSuccess(res, status);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/status', AirtableController.getStatus);
 
 /**
  * @swagger
@@ -200,15 +170,7 @@ router.get('/status', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/disconnect', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    await AirtableService.disconnect(organizationId);
-    sendSuccess(res, { disconnected: true });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.post('/disconnect', AirtableController.disconnect);
 
 /**
  * @swagger
@@ -239,15 +201,7 @@ router.post('/disconnect', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/sync', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const counts = await AirtableService.syncAll(organizationId);
-    sendSuccess(res, counts, undefined, 200);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.post('/sync', AirtableController.syncAll);
 
 /**
  * @swagger
@@ -277,15 +231,7 @@ router.post('/sync', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/sync/bases', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const count = await AirtableService.syncBases(organizationId);
-    sendSuccess(res, { synced: count });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.post('/sync/bases', AirtableController.syncBases);
 
 /**
  * @swagger
@@ -320,15 +266,7 @@ router.post('/sync/bases', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/sync/tables/:baseId', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const count = await AirtableService.syncTables(organizationId, req.params.baseId);
-    sendSuccess(res, { synced: count });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.post('/sync/tables/:baseId', AirtableController.syncTables);
 
 /**
  * @swagger
@@ -371,15 +309,7 @@ router.post('/sync/tables/:baseId', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/sync/records/:baseId/:tableId', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const count = await AirtableService.syncRecords(organizationId, req.params.baseId, req.params.tableId);
-    sendSuccess(res, { synced: count });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.post('/sync/records/:baseId/:tableId', AirtableController.syncRecords);
 
 /**
  * @swagger
@@ -415,15 +345,7 @@ router.post('/sync/records/:baseId/:tableId', async (req: Request, res: Response
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/bases', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const bases = await AirtableService.getBases(organizationId);
-    sendSuccess(res, bases);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/bases', AirtableController.getBases);
 
 /**
  * @swagger
@@ -469,18 +391,7 @@ router.get('/bases', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/tables', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const { baseId } = req.query as { baseId?: string };
-    const tables = baseId
-      ? await AirtableService.getTables(organizationId, baseId)
-      : await AirtableService.getAllTables(organizationId);
-    sendSuccess(res, tables);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/tables', AirtableController.getTables);
 
 /**
  * @swagger
@@ -540,31 +451,7 @@ router.get('/tables', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/records', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const { baseId, tableId, page = '1', pageSize = '100' } = req.query as Record<string, string>;
-    const filter: Record<string, any> = {};
-    if (baseId) filter.baseId = baseId;
-    if (tableId) filter.tableId = tableId;
-
-    const { records, total } = await AirtableService.getRecords(
-      organizationId,
-      filter,
-      parseInt(page, 10),
-      parseInt(pageSize, 10),
-    );
-
-    sendSuccess(res, records, {
-      page: parseInt(page, 10),
-      pageSize: parseInt(pageSize, 10),
-      total,
-      totalPages: Math.ceil(total / parseInt(pageSize, 10)),
-    });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/records', AirtableController.getRecords);
 
 /**
  * @swagger
@@ -604,14 +491,6 @@ router.get('/records', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/users', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const users = await AirtableService.getUsers(organizationId);
-    sendSuccess(res, users);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/users', AirtableController.getUsers);
 
 export default router;

@@ -1,7 +1,5 @@
-import { Router, Request, Response } from 'express';
-import { ScraperService } from './scraper.service';
-import { enqueueScraperJob } from './scraper.queue';
-import { sendSuccess, sendError } from '../../common/response';
+import { Router } from 'express';
+import { ScraperController } from '../controllers/scraper.controller';
 
 const router = Router();
 
@@ -67,18 +65,7 @@ const router = Router();
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/auth/start', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const { email, password } = req.body;
-    if (!email || !password) return sendError(res, 'email and password are required', 400);
-
-    const result = await ScraperService.initiateAuth(organizationId, email, password);
-    sendSuccess(res, result);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.post('/auth/start', ScraperController.startAuth);
 
 /**
  * @swagger
@@ -125,17 +112,7 @@ router.post('/auth/start', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/auth/mfa', async (req: Request, res: Response) => {
-  try {
-    const { sessionId, mfaCode } = req.body;
-    if (!sessionId || !mfaCode) return sendError(res, 'sessionId and mfaCode are required', 400);
-
-    await ScraperService.submitMfa(sessionId, mfaCode);
-    sendSuccess(res, { authenticated: true });
-  } catch (err: any) {
-    sendError(res, err.message, 400);
-  }
-});
+router.post('/auth/mfa', ScraperController.submitMfa);
 
 /**
  * @swagger
@@ -187,17 +164,7 @@ router.post('/auth/mfa', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/auth/validate', async (req: Request, res: Response) => {
-  try {
-    const { sessionId } = req.body;
-    if (!sessionId) return sendError(res, 'sessionId is required', 400);
-
-    const result = await ScraperService.validateCookies(sessionId);
-    sendSuccess(res, result);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.post('/auth/validate', ScraperController.validateCookies);
 
 /**
  * @swagger
@@ -251,23 +218,52 @@ router.post('/auth/validate', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/run', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const { sessionId } = req.body;
-    if (!sessionId) return sendError(res, 'sessionId is required', 400);
+router.post('/run', ScraperController.runScraper);
 
-    // Mark as running immediately — before enqueuing — so the polling loop never
-    // reads stale 'completed' from the DB during the gap between HTTP response and
-    // worker pick-up, which would cause the frontend to stop polling too early.
-    await ScraperService.markRunning(sessionId);
-
-    const jobId = await enqueueScraperJob(organizationId, sessionId);
-    sendSuccess(res, { started: true, sessionId, jobId });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+/**
+ * @swagger
+ * /api/scraper/session/org/latest:
+ *   get:
+ *     summary: Get the most recent session for the organization
+ *     description: >
+ *       Returns the latest `scraper_sessions` document for the current organization,
+ *       regardless of status. Useful on page load to check if a session already exists
+ *       so the UI can resume monitoring rather than re-authenticating.
+ *       Returns `null` in `data` if no session has ever been created.
+ *     tags: [Scraper]
+ *     parameters:
+ *       - $ref: '#/components/parameters/OrgId'
+ *     responses:
+ *       200:
+ *         description: Latest session or null
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   nullable: true
+ *                   type: object
+ *                   properties:
+ *                     sessionId: { type: string }
+ *                     status: { type: string, enum: [idle, authenticating, awaiting_mfa, running, completed, failed] }
+ *                     progress:
+ *                       type: object
+ *                       properties:
+ *                         total: { type: integer }
+ *                         processed: { type: integer }
+ *                         failed: { type: integer }
+ *                     startedAt: { type: string, format: date-time, nullable: true }
+ *                     completedAt: { type: string, format: date-time, nullable: true }
+ *                     cookiesValidatedAt: { type: string, format: date-time, nullable: true }
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ */
+router.get('/session/org/latest', ScraperController.getLatestSession);
 
 /**
  * @swagger
@@ -318,86 +314,7 @@ router.post('/run', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/session/:sessionId', async (req: Request, res: Response) => {
-  try {
-    const session = await ScraperService.getSession(req.params.sessionId);
-    if (!session) return sendError(res, 'Session not found', 404);
-    sendSuccess(res, {
-      sessionId: session.sessionId,
-      status: session.status,
-      progress: session.progress,
-      error: session.error,
-      startedAt: session.startedAt,
-      completedAt: session.completedAt,
-      cookiesValidatedAt: session.cookiesValidatedAt,
-    });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
-
-/**
- * @swagger
- * /api/scraper/session/org/latest:
- *   get:
- *     summary: Get the most recent session for the organization
- *     description: >
- *       Returns the latest `scraper_sessions` document for the current organization,
- *       regardless of status. Useful on page load to check if a session already exists
- *       so the UI can resume monitoring rather than re-authenticating.
- *       Returns `null` in `data` if no session has ever been created.
- *     tags: [Scraper]
- *     parameters:
- *       - $ref: '#/components/parameters/OrgId'
- *     responses:
- *       200:
- *         description: Latest session or null
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean, example: true }
- *                 data:
- *                   nullable: true
- *                   type: object
- *                   properties:
- *                     sessionId: { type: string }
- *                     status: { type: string, enum: [idle, authenticating, awaiting_mfa, running, completed, failed] }
- *                     progress:
- *                       type: object
- *                       properties:
- *                         total: { type: integer }
- *                         processed: { type: integer }
- *                         failed: { type: integer }
- *                     startedAt: { type: string, format: date-time, nullable: true }
- *                     completedAt: { type: string, format: date-time, nullable: true }
- *                     cookiesValidatedAt: { type: string, format: date-time, nullable: true }
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/ErrorResponse' }
- */
-router.get('/session/org/latest', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const session = await ScraperService.getLatestSession(organizationId);
-    sendSuccess(res, session
-      ? {
-          sessionId: session.sessionId,
-          status: session.status,
-          progress: session.progress,
-          error: session.error,
-          startedAt: session.startedAt,
-          completedAt: session.completedAt,
-          cookiesValidatedAt: session.cookiesValidatedAt,
-        }
-      : null);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/session/:sessionId', ScraperController.getSession);
 
 /**
  * @swagger
@@ -468,34 +385,7 @@ router.get('/session/org/latest', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/changelogs', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const { issueId, baseId, tableId, columnType, page = '1', pageSize = '100' } = req.query as Record<string, string>;
-
-    const filter: Record<string, any> = {};
-    if (issueId) filter.issueId = issueId;
-    if (baseId) filter.baseId = baseId;
-    if (tableId) filter.tableId = tableId;
-    if (columnType) filter.columnType = columnType;
-
-    const { changelogs, total } = await ScraperService.getChangelogs(
-      organizationId,
-      filter,
-      parseInt(page, 10),
-      parseInt(pageSize, 10),
-    );
-
-    sendSuccess(res, changelogs, {
-      page: parseInt(page, 10),
-      pageSize: parseInt(pageSize, 10),
-      total,
-      totalPages: Math.ceil(total / parseInt(pageSize, 10)),
-    });
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/changelogs', ScraperController.getChangelogs);
 
 /**
  * @swagger
@@ -525,15 +415,7 @@ router.get('/changelogs', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/stats', async (req: Request, res: Response) => {
-  try {
-    const organizationId = (req as any).organizationId;
-    const stats = await ScraperService.getStats(organizationId);
-    sendSuccess(res, stats);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/stats', ScraperController.getStats);
 
 /**
  * @swagger
@@ -561,21 +443,7 @@ router.get('/stats', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/debug/record', async (req: Request, res: Response) => {
-  try {
-    const { sessionId } = req.query as Record<string, string>;
-    if (!sessionId) return sendError(res, 'sessionId is required', 400);
-
-    const session = await ScraperService.getSession(sessionId);
-    if (!session) return sendError(res, 'Session not found', 404);
-
-    const organizationId = (req as any).organizationId;
-    const raw = await ScraperService.debugOneRecord(organizationId, sessionId);
-    res.json(raw);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/debug/record', ScraperController.debugRecord);
 
 /**
  * @swagger
@@ -611,20 +479,6 @@ router.get('/debug/record', async (req: Request, res: Response) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/debug/discover', async (req: Request, res: Response) => {
-  try {
-    const { sessionId } = req.query as Record<string, string>;
-    if (!sessionId) return sendError(res, 'sessionId is required', 400);
-
-    const session = await ScraperService.getSession(sessionId);
-    if (!session) return sendError(res, 'Session not found', 404);
-
-    const organizationId = (req as any).organizationId;
-    const result = await ScraperService.discoverActivityEndpoint(organizationId, sessionId);
-    sendSuccess(res, result);
-  } catch (err: any) {
-    sendError(res, err.message);
-  }
-});
+router.get('/debug/discover', ScraperController.debugDiscover);
 
 export default router;

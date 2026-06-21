@@ -23,7 +23,7 @@ const mockGetRecordsByTable = jest.fn();
 const mockUpsertUser = jest.fn();
 const mockGetUsers = jest.fn();
 
-jest.mock('../airtable.repository', () => ({
+jest.mock('../repositories/airtable.repository', () => ({
   AirtableRepository: jest.fn().mockImplementation(() => ({
     getConnection: mockGetConnection,
     deleteConnection: mockDeleteConnection,
@@ -44,7 +44,7 @@ jest.mock('../airtable.repository', () => ({
 }));
 
 // Import AFTER mocks are registered
-import { AirtableService } from '../airtable.service';
+import { AirtableService } from '../services/airtable.service';
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockCache = (cacheModule as any).cache as jest.Mocked<typeof cacheModule.cache>;

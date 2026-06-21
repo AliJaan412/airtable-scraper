@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import axios, { AxiosError } from 'axios';
-import { config } from '../../config';
-import { AirtableRepository } from './airtable.repository';
-import { IAirtableConnection } from './schemas/airtable-connection.schema';
-import { AirtableRecordModel } from './schemas/airtable-record.schema';
-import { cache } from '../../common/cache';
+import { config } from '../../../config';
+import { AirtableRepository } from '../repositories/airtable.repository';
+import { IAirtableConnection } from '../schemas/airtable-connection.schema';
+import { AirtableRecordModel } from '../schemas/airtable-record.schema';
+import { cache } from '../../../common/cache';
 
 const repo = new AirtableRepository();
 
