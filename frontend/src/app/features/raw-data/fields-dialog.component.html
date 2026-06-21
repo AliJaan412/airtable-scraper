@@ -1,0 +1,24 @@
+<div class="dlg-header">
+  <span class="dlg-title">{{ data.title }}</span>
+  <button class="dlg-close" (click)="close()">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<div class="dlg-body">
+  @for (section of sections; track $index) {
+    @if (section.heading) {
+      <div class="section-heading">{{ section.heading }}</div>
+    }
+    <table class="kv-table">
+      <tbody>
+        @for (row of section.rows; track $index) {
+          <tr>
+            <td class="kv-key">{{ row.key }}</td>
+            <td class="kv-val" [class.kv-val--json]="row.isObject">{{ row.display }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

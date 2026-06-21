@@ -52,36 +52,38 @@
                 <span class="btn-spinner" style="width:16px;height:16px;border-width:2px;flex-shrink:0;"></span>
                 <span>Launching browser and logging in&hellip;</span>
               </div>
-            } @else if (isAuthExpired()) {
-              <div class="status-banner status-banner--expired">
-                <mat-icon>lock_clock</mat-icon>
-                <div>
-                  <strong>Session expired</strong>
-                  <div class="banner-sub">{{ session()?.error }}</div>
-                </div>
-              </div>
-            }
-            <div class="form-stack" [class.is-loading]="authLoading()">
-              <mat-form-field appearance="outline" class="w-full">
-                <mat-label>Airtable Email</mat-label>
-                <input matInput type="email" [(ngModel)]="email" placeholder="jane@example.com" [disabled]="authLoading()" />
-                <mat-icon matPrefix>email</mat-icon>
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="w-full">
-                <mat-label>Password</mat-label>
-                <input matInput [type]="showPassword ? 'text' : 'password'" [(ngModel)]="password" [disabled]="authLoading()" />
-                <mat-icon matPrefix>lock</mat-icon>
-                <button matSuffix mat-icon-button (click)="showPassword = !showPassword" type="button" [disabled]="authLoading()">
-                  <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
-                </button>
-              </mat-form-field>
-              @if (session()?.status === 'failed' && !isAuthExpired()) {
-                <div class="alert alert--error">
-                  <mat-icon>error_outline</mat-icon>
-                  {{ session()?.error }}
+            } @else {
+              @if (isAuthExpired()) {
+                <div class="status-banner status-banner--expired">
+                  <mat-icon>lock_clock</mat-icon>
+                  <div>
+                    <strong>Session expired</strong>
+                    <div class="banner-sub">{{ session()?.error }}</div>
+                  </div>
                 </div>
               }
-            </div>
+              <div class="form-stack">
+                <mat-form-field appearance="outline" class="w-full">
+                  <mat-label>Airtable Email</mat-label>
+                  <input matInput type="email" [(ngModel)]="email" placeholder="jane@example.com" />
+                  <mat-icon matPrefix>email</mat-icon>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="w-full">
+                  <mat-label>Password</mat-label>
+                  <input matInput [type]="showPassword ? 'text' : 'password'" [(ngModel)]="password" />
+                  <mat-icon matPrefix>lock</mat-icon>
+                  <button matSuffix mat-icon-button (click)="showPassword = !showPassword" type="button">
+                    <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+                  </button>
+                </mat-form-field>
+                @if (session()?.status === 'failed' && !isAuthExpired()) {
+                  <div class="alert alert--error">
+                    <mat-icon>error_outline</mat-icon>
+                    {{ session()?.error }}
+                  </div>
+                }
+              </div>
+            }
           } @else if (session()?.status === 'authenticating') {
             <div class="status-banner status-banner--info">
               <span class="btn-spinner" style="width:16px;height:16px;border-width:2px;flex-shrink:0;"></span>
@@ -108,22 +110,16 @@
         </div>
 
         <div class="step-footer">
-          @if (!session() || session()?.status === 'idle' || session()?.status === 'failed') {
+          @if ((!session() || session()?.status === 'idle' || session()?.status === 'failed') && !authLoading()) {
             <button
               class="btn w-full"
-              [class.btn--primary]="!isAuthExpired() && !authLoading()"
-              [class.btn--warn]="isAuthExpired() && !authLoading()"
-              [class.btn--outline]="authLoading()"
+              [class.btn--primary]="!isAuthExpired()"
+              [class.btn--warn]="isAuthExpired()"
               (click)="startAuth()"
-              [disabled]="!email || !password || authLoading()"
+              [disabled]="!email || !password"
             >
-              @if (authLoading()) {
-                <span class="btn-spinner"></span>
-                Connecting&hellip;
-              } @else {
-                <mat-icon>{{ isAuthExpired() ? 'refresh' : 'fingerprint' }}</mat-icon>
-                {{ isAuthExpired() ? 'Re-authenticate' : 'Start Authentication' }}
-              }
+              <mat-icon>{{ isAuthExpired() ? 'refresh' : 'fingerprint' }}</mat-icon>
+              {{ isAuthExpired() ? 'Re-authenticate' : 'Start Authentication' }}
             </button>
           } @else if (session()?.status === 'awaiting_mfa' || session()?.status === 'awaiting_captcha' || session()?.status === 'running' || session()?.status === 'completed') {
             <div class="btn-row">
@@ -212,7 +208,7 @@
             @if (session()?.status === 'running') {
               <div class="progress-wrap">
                 <div class="progress-info">
-                  <span>{{ session()?.progress?.processed }} / {{ session()?.progress?.total }} tickets</span>
+                  <span>{{ progressAttempted() }} / {{ session()?.progress?.total }} tickets</span>
                   @if ((session()?.progress?.failed ?? 0) > 0) {
                     <span class="fail-count">· {{ session()?.progress?.failed }} failed</span>
                   }

@@ -160,6 +160,9 @@ export class ScraperState {
   @Action(ScraperActions.ResetSession)
   resetSession(ctx: StateContext<ScraperStateModel>) {
     ctx.patchState({ session: null, sessionLoaded: false, error: null });
+    return this.scraperSvc.resetSession().pipe(
+      catchError(() => EMPTY),
+    );
   }
 
   @Action(ScraperActions.LoadStats)

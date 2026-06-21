@@ -115,7 +115,13 @@ export class ScraperComponent implements OnInit, OnDestroy {
   progressPct(): number {
     const s = this.session();
     if (!s?.progress?.total) return 0;
-    return Math.round((s.progress.processed / s.progress.total) * 100);
+    const attempted = (s.progress.processed ?? 0) + (s.progress.failed ?? 0);
+    return Math.round((attempted / s.progress.total) * 100);
+  }
+
+  progressAttempted(): number {
+    const s = this.session();
+    return (s?.progress?.processed ?? 0) + (s?.progress?.failed ?? 0);
   }
 
   startAuth(): void {

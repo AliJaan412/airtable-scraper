@@ -19,6 +19,10 @@ export class ScraperRepository {
     return ScraperSessionModel.findOne({ organizationId }).sort({ createdAt: -1 }).limit(1);
   }
 
+  async deleteSessionByOrg(organizationId: string): Promise<void> {
+    await ScraperSessionModel.deleteMany({ organizationId });
+  }
+
   async updateSessionStatus(sessionId: string, status: ScraperStatus, extra?: Partial<IScraperSession>): Promise<void> {
     await ScraperSessionModel.updateOne({ sessionId }, { $set: { status, ...extra } });
   }

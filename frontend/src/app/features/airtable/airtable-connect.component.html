@@ -1,0 +1,160 @@
+<div class="page">
+
+  <!-- Page header -->
+  <div class="page-header">
+    <h1 class="page-heading">
+      <mat-icon class="heading-icon">cloud_sync</mat-icon>
+      Airtable Integration
+    </h1>
+    <p class="page-sub">Connect and sync your Airtable workspace to the local database.</p>
+  </div>
+
+  <!-- Connection status card -->
+  <div class="card" [class.card--expired]="status()?.isExpired">
+    <div class="connection-row">
+      <div class="connection-left">
+        <div
+          class="status-dot"
+          [class.status-dot--on]="status()?.connected && !status()?.isExpired"
+          [class.status-dot--expired]="status()?.isExpired"
+        ></div>
+        <div>
+          <div class="connection-title">
+            @if (status()?.isExpired) {
+              Token Expired
+            } @else if (status()?.connected) {
+              Connected to Airtable
+            } @else {
+              Not connected
+            }
+          </div>
+          @if (status()?.connected && !status()?.isExpired) {
+            <div class="connection-sub">Expires {{ status()?.expiresAt | date:'mediumDate' }}</div>
+          } @else if (status()?.isExpired) {
+            <div class="connection-sub connection-sub--expired">
+              <mat-icon class="sub-icon">warning_amber</mat-icon>
+              Expired {{ status()?.expiresAt | date:'mediumDate' }} — reconnect to restore access
+            </div>
+          } @else {
+            <div class="connection-sub">Connect your account to start syncing data</div>
+          }
+        </div>
+      </div>
+      <div class="connection-right">
+        @if (!status()?.connected) {
+          <button class="btn btn--primary" (click)="connect()" [disabled]="loading()">
+            @if (loading()) {
+              <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
+            } @else {
+              <mat-icon>link</mat-icon>
+            }
+            Connect Airtable
+          </button>
+        } @else if (status()?.isExpired) {
+          <button class="btn btn--warn" (click)="connect()" [disabled]="loading()">
+            @if (loading()) {
+              <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
+            } @else {
+              <mat-icon>refresh</mat-icon>
+            }
+            Reconnect
+          </button>
+        } @else {
+          <button class="btn btn--danger" (click)="disconnect()" [disabled]="loading()">
+            <mat-icon>link_off</mat-icon>
+            Disconnect
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  @if (status()?.connected) {
+    @if (status()?.isExpired) {
+      <div class="card expired-notice">
+        <mat-icon class="expired-notice-icon">lock_clock</mat-icon>
+        <div>
+          <div class="expired-notice-title">Sync unavailable — token expired</div>
+          <div class="expired-notice-sub">Your Airtable access token has expired. Click <strong>Reconnect</strong> above to restore access and resume syncing.</div>
+        </div>
+      </div>
+    }
+  }
+
+  @if (status()?.connected && !status()?.isExpired) {
+
+    <!-- Sync card -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Data Sync</div>
+          <div class="card-sub">Pull all Airtable data into the local database</div>
+          @if (!syncing()) {
+            <div class="last-synced-label">
+              <mat-icon class="last-synced-icon">schedule</mat-icon>
+              {{ lastSyncedLabel() }}
+            </div>
+          }
+        </div>
+        <button class="btn btn--primary" (click)="syncAll()" [disabled]="syncing()">
+          @if (syncing()) {
+            <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
+            Syncing...
+          } @else {
+            <mat-icon>cloud_download</mat-icon>
+            Sync All
+          }
+        </button>
+      </div>
+
+      @if (syncResults()) {
+        <div class="stats-grid">
+          @for (item of syncResultItems(); track item.key) {
+            <div class="stat-card">
+              <div class="stat-icon-wrap">
+                <mat-icon class="stat-icon">{{ item.icon }}</mat-icon>
+              </div>
+              <div>
+                <div class="stat-value">{{ item.count }}</div>
+                <div class="stat-label">{{ item.label }}</div>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="hint-text">Run Sync All to import your Airtable bases, tables, tickets, and users.</p>
+      }
+    </div>
+
+    <!-- Bases card -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Bases (Projects)</div>
+          <div class="card-sub">{{ bases().length }} base{{ bases().length !== 1 ? 's' : '' }} synced</div>
+        </div>
+        <button class="icon-btn" (click)="refreshBases()" title="Refresh">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </div>
+
+      @if (bases().length === 0) {
+        <p class="hint-text">No bases found. Run Sync All to import your bases.</p>
+      } @else {
+        <div class="bases-list">
+          @for (base of bases(); track base.baseId) {
+            <div class="base-row">
+              <mat-icon class="base-icon">folder_open</mat-icon>
+              <div class="base-info">
+                <div class="base-name">{{ base.name }}</div>
+                <div class="base-id">{{ base.baseId }}</div>
+              </div>
+              <span class="perm-badge">{{ base.permissionLevel }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+  }
+</div>

@@ -31,8 +31,8 @@ export class ScraperService {
     return this.api.get<ScraperSession | null>('/scraper/session/org/latest').pipe(map((r) => r.data));
   }
 
-  getChangelogs(filter: Record<string, any> = {}, page = 1, pageSize = 100): Observable<any> {
-    return this.api.get<any[]>('/scraper/changelogs', { ...filter, page, pageSize });
+  resetSession(): Observable<void> {
+    return this.api.delete<void>('/scraper/session/reset').pipe(map(() => undefined));
   }
 
   getStats(): Observable<{ total: number; byType: { status: number; assignee: number } }> {

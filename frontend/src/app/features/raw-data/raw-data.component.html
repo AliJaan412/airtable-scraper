@@ -1,0 +1,110 @@
+<div class="page-container">
+  <!-- Toolbar -->
+  <mat-card class="toolbar-card">
+    <mat-card-content>
+      <div class="toolbar-row">
+        <!-- Integration selector -->
+        <mat-form-field appearance="outline" class="field-sm">
+          <mat-label>Active Integrations</mat-label>
+          <mat-select [(ngModel)]="selectedIntegration" (ngModelChange)="onIntegrationChange()">
+            @for (integration of integrations; track integration.value) {
+              <mat-option [value]="integration.value">
+                <mat-icon class="inline-icon">{{ integration.icon }}</mat-icon>
+                {{ integration.label }}
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Entity (collection) selector -->
+        <mat-form-field appearance="outline" class="field-md">
+          <mat-label>Entity</mat-label>
+          <mat-select
+            [(ngModel)]="selectedCollection"
+            (ngModelChange)="onCollectionChange()"
+            [disabled]="!selectedIntegration"
+          >
+            @for (col of collections(); track col) {
+              <mat-option [value]="col">{{ collectionLabel(col) }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Search -->
+        <mat-form-field appearance="outline" class="field-lg">
+          <mat-label>Search</mat-label>
+          <input matInput [formControl]="searchControl" placeholder="Search across all columns..." />
+          <mat-icon matPrefix>search</mat-icon>
+          @if (searchControl.value) {
+            <button matSuffix mat-icon-button (click)="clearSearch()">
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </mat-form-field>
+
+        <div class="spacer"></div>
+
+        <!-- Controls -->
+        <button mat-stroked-button (click)="refresh()" [disabled]="loading() || !selectedCollection">
+          <mat-icon>refresh</mat-icon>
+          Refresh
+        </button>
+
+        <button mat-stroked-button color="warn" (click)="clearFilters()" [disabled]="!selectedCollection">
+          <mat-icon>filter_alt_off</mat-icon>
+          Clear
+        </button>
+      </div>
+
+      <!-- Status row -->
+      <div class="status-row">
+        @if (selectedCollection) {
+          <span class="count-label">
+            {{ totalRows() | number }} total records
+            @if (pageInfo().totalPages > 1) {
+              &nbsp;· Page {{ pageInfo().page }} of {{ pageInfo().totalPages }}
+            }
+          </span>
+        }
+        @if (loading()) {
+          <mat-progress-bar mode="indeterminate" class="progress-bar"></mat-progress-bar>
+        }
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Grid -->
+  <div class="grid-container">
+    @if (!selectedCollection) {
+      <div class="empty-state">
+        <mat-icon>table_chart</mat-icon>
+        <p>Select an integration and entity to view data</p>
+      </div>
+    } @else if (columnDefs().length === 0 && !loading()) {
+      <div class="empty-state">
+        <mat-icon>inbox</mat-icon>
+        <p>No data found for <strong>{{ collectionLabel(selectedCollection) }}</strong></p>
+      </div>
+    } @else {
+      <ag-grid-angular
+        class="ag-theme-material"
+        style="width: 100%; height: 100%"
+        [columnDefs]="columnDefs()"
+        [rowData]="rowData()"
+        [defaultColDef]="defaultColDef"
+        [autoSizeStrategy]="autoSizeStrategy"
+        [pagination]="true"
+        [paginationPageSize]="pageSize"
+        [paginationPageSizeSelector]="[25, 50, 100, 200]"
+        [suppressPaginationPanel]="false"
+        [animateRows]="true"
+        [enableCellTextSelection]="true"
+        (gridReady)="onGridReady($event)"
+        (cellClicked)="onCellClicked($event)"
+        (paginationChanged)="onPaginationChanged($event)"
+        (sortChanged)="onSortChanged($event)"
+        (filterChanged)="onFilterChanged()"
+      />
+    }
+  </div>
+</div>

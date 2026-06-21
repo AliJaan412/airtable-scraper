@@ -222,6 +222,36 @@ router.post('/run', ScraperController.runScraper);
 
 /**
  * @swagger
+ * /api/scraper/session/reset:
+ *   delete:
+ *     summary: Reset (delete) all sessions for the organization
+ *     description: Deletes all scraper session documents for the current organization so the UI returns to the initial authentication form on the next page load.
+ *     tags: [Scraper]
+ *     parameters:
+ *       - $ref: '#/components/parameters/OrgId'
+ *     responses:
+ *       200:
+ *         description: Sessions deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reset: { type: boolean, example: true }
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ */
+router.delete('/session/reset', ScraperController.resetSession);
+
+/**
+ * @swagger
  * /api/scraper/session/org/latest:
  *   get:
  *     summary: Get the most recent session for the organization
@@ -318,77 +348,6 @@ router.get('/session/:sessionId', ScraperController.getSession);
 
 /**
  * @swagger
- * /api/scraper/changelogs:
- *   get:
- *     summary: Get parsed changelogs with filtering and pagination
- *     description: >
- *       Returns revision history entries parsed from Airtable HTML by the scraper.
- *       Each document represents one field change: who changed what, from what to what, and when.
- *       Supports filtering by record ID, base, table, or column type (e.g. "Assignee", "Status").
- *     tags: [Scraper]
- *     parameters:
- *       - $ref: '#/components/parameters/OrgId'
- *       - in: query
- *         name: issueId
- *         schema: { type: string, example: recXXXXXXXXXXXXXX }
- *         description: Filter to a specific Airtable record ID
- *       - in: query
- *         name: baseId
- *         schema: { type: string, example: appXXXXXXXXXXXXXX }
- *         description: Filter to a specific base
- *       - in: query
- *         name: tableId
- *         schema: { type: string, example: tblXXXXXXXXXXXXXX }
- *         description: Filter to a specific table
- *       - in: query
- *         name: columnType
- *         schema: { type: string, example: Assignee }
- *         description: "Filter to a specific field type (e.g. Assignee, Status)"
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1, example: 1 }
- *       - in: query
- *         name: pageSize
- *         schema: { type: integer, default: 100, example: 50 }
- *     responses:
- *       200:
- *         description: Paginated changelogs
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean, example: true }
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       issueId: { type: string, example: recXXXXXXXXXXXXXX }
- *                       baseId: { type: string, example: appXXXXXXXXXXXXXX }
- *                       tableId: { type: string, example: tblXXXXXXXXXXXXXX }
- *                       columnType: { type: string, example: Assignee }
- *                       oldValue: { type: string, nullable: true, example: "Jane Doe" }
- *                       newValue: { type: string, nullable: true, example: "John Smith" }
- *                       authoredBy: { type: string, example: "Alice" }
- *                       createdDate: { type: string, format: date-time }
- *                 _meta:
- *                   type: object
- *                   properties:
- *                     page: { type: integer }
- *                     pageSize: { type: integer }
- *                     total: { type: integer }
- *                     totalPages: { type: integer }
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/ErrorResponse' }
- */
-router.get('/changelogs', ScraperController.getChangelogs);
-
-/**
- * @swagger
  * /api/scraper/stats:
  *   get:
  *     summary: Get changelog statistics grouped by column type
@@ -416,69 +375,5 @@ router.get('/changelogs', ScraperController.getChangelogs);
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
 router.get('/stats', ScraperController.getStats);
-
-/**
- * @swagger
- * /api/scraper/debug/record:
- *   get:
- *     summary: Fetch raw revision history for one record (debug)
- *     description: >
- *       Uses stored session cookies to fetch and return the raw Airtable revision history
- *       response for the first synced record in the organization.
- *       Returns raw JSON directly (not wrapped in the standard success envelope).
- *       Use this to inspect the HTML structure when debugging the changelog parser.
- *     tags: [Scraper]
- *     parameters:
- *       - in: query
- *         name: sessionId
- *         required: true
- *         schema: { type: string, example: "550e8400-e29b-41d4-a716-446655440000" }
- *         description: Active session ID with valid cookies
- *     responses:
- *       200:
- *         description: Raw revision history data from Airtable
- *       400:
- *         description: Missing sessionId or session not found
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/ErrorResponse' }
- */
-router.get('/debug/record', ScraperController.debugRecord);
-
-/**
- * @swagger
- * /api/scraper/debug/discover:
- *   get:
- *     summary: Discover Airtable activity endpoint URL via CDP interception
- *     description: >
- *       Uses Chrome DevTools Protocol to intercept live network requests and discover
- *       the actual Airtable internal activity API endpoint URL and headers.
- *       Use this when the revision history URL changes between Airtable versions.
- *     tags: [Scraper]
- *     parameters:
- *       - in: query
- *         name: sessionId
- *         required: true
- *         schema: { type: string, example: "550e8400-e29b-41d4-a716-446655440000" }
- *         description: Active session ID with valid cookies
- *     responses:
- *       200:
- *         description: Discovered endpoint URL and captured headers
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean, example: true }
- *                 data:
- *                   type: object
- *                   description: Captured URL and request headers from Airtable network traffic
- *       400:
- *         description: Missing sessionId or session not found
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/ErrorResponse' }
- */
-router.get('/debug/discover', ScraperController.debugDiscover);
 
 export default router;

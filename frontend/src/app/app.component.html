@@ -1,0 +1,42 @@
+<div class="shell">
+
+  <!-- ── Top bar ───────────────────────────────────────────── -->
+  <header class="topbar">
+    <button class="hamburger" (click)="navOpen.set(!navOpen())">
+      <mat-icon>{{ navOpen() ? 'close' : 'menu' }}</mat-icon>
+    </button>
+    <img src="https://sred.io/assets/img/logo.png" alt="Sred.io" class="topbar-logo" />
+    <span class="topbar-fill"></span>
+    <span class="topbar-caption">Airtable Integration Platform</span>
+  </header>
+
+  <!-- ── Body ─────────────────────────────────────────────── -->
+  <div class="body">
+
+    <!-- Sidebar -->
+    <nav class="sidenav" [class.sidenav--closed]="!navOpen()">
+      @for (item of navItems; track item.route) {
+        <a
+          class="nav-link"
+          [routerLink]="item.route"
+          routerLinkActive="nav-link--active"
+          [routerLinkActiveOptions]="{ exact: false }"
+        >
+          <mat-icon class="nav-icon">{{ item.icon }}</mat-icon>
+          <span class="nav-label">{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+
+    <!-- Mobile overlay -->
+    @if (navOpen()) {
+      <div class="overlay" (click)="navOpen.set(false)"></div>
+    }
+
+    <!-- Page content -->
+    <main class="content">
+      <router-outlet />
+    </main>
+
+  </div>
+</div>
