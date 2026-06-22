@@ -4,8 +4,6 @@ import {
   OnDestroy,
   inject,
   signal,
-  computed,
-  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -79,7 +77,8 @@ export class RawDataComponent implements OnInit, OnDestroy {
 
   selectedIntegration = 'airtable';
   selectedCollection = '';
-  pageSize = 500; // load 500 rows at once; AG Grid paginates them client-side
+  pageSize = 100;
+  readonly pageSizeOptions = [25, 50, 100, 200];
 
   searchControl = new FormControl('');
 
@@ -115,7 +114,10 @@ export class RawDataComponent implements OnInit, OnDestroy {
       debounceTime(400),
       distinctUntilChanged(),
       takeUntil(this.destroy$),
-    ).subscribe(() => this.fetchData());
+    ).subscribe(() => {
+      this.pageInfo.update((p) => ({ ...p, page: 1 }));
+      this.fetchData();
+    });
   }
 
   ngOnDestroy(): void {
@@ -156,9 +158,17 @@ export class RawDataComponent implements OnInit, OnDestroy {
     this.fetchData();
   }
 
-  onPaginationChanged(_event: any): void {
-    // AG Grid handles pagination of the currently loaded rows client-side.
-    // Server-side page fetching is triggered only by onCollectionChange(), search, and sort.
+  onPageSizeChange(newSize: number): void {
+    this.pageSize = newSize;
+    this.pageInfo.update((p) => ({ ...p, page: 1, pageSize: newSize }));
+    this.fetchData();
+  }
+
+  goToPage(page: number): void {
+    const { totalPages } = this.pageInfo();
+    if (page < 1 || page > totalPages) return;
+    this.pageInfo.update((p) => ({ ...p, page }));
+    this.fetchData();
   }
 
   onSortChanged(event: any): void {
@@ -168,6 +178,7 @@ export class RawDataComponent implements OnInit, OnDestroy {
     } else {
       this.currentSort = {};
     }
+    this.pageInfo.update((p) => ({ ...p, page: 1 }));
     this.fetchData();
   }
 
@@ -187,6 +198,7 @@ export class RawDataComponent implements OnInit, OnDestroy {
     this.searchControl.setValue('');
     this.gridApi?.setFilterModel(null);
     this.currentSort = {};
+    this.pageInfo.update((p) => ({ ...p, page: 1 }));
     this.fetchData();
   }
 
@@ -352,13 +364,13 @@ export class RawDataComponent implements OnInit, OnDestroy {
     // ── Status chip ────────────────────────────────────────────────────────
     if (field === 'status') {
       const cls = this.statusClass(value);
-      return `<span class="status-chip ${cls}">${value}</span>`;
+      return `<span class="chip ${cls}">${value}</span>`;
     }
 
     // ── Column type badge ──────────────────────────────────────────────────
     if (field === 'columnType') {
-      const color = value === 'status' ? '#1976d2' : value === 'priority' ? '#b45309' : '#7b1fa2';
-      return `<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500;color:${color};background:${color}18;white-space:nowrap">${value}</span>`;
+      const cls = value === 'status' ? 'chip-blue' : value === 'priority' ? 'chip-amber' : 'chip-purple';
+      return `<span class="chip ${cls}">${value}</span>`;
     }
 
     return String(value);

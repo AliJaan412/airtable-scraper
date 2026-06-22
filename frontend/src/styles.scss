@@ -82,21 +82,32 @@ html, body {
   font-size: 13px;
 }
 
-// ── Status chips ────────────────────────────────────────────────────────────
-.status-chip {
+// ── Shared chip base ─────────────────────────────────────────────────────────
+.chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
+  align-self: center;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
+  line-height: 1.4;
 
+  // columnType variants
+  &.chip-blue   { background: #1976d218; color: #1976d2; font-weight: 600; }
+  &.chip-amber  { background: #b4530918; color: #b45309; font-weight: 600; }
+  &.chip-purple { background: #7b1fa218; color: #7b1fa2; font-weight: 600; }
+
+  // scraper-session / airtable status variants
   &.status-open        { background: var(--clr-primary-light); color: var(--clr-primary-dark); }
   &.status-in-progress { background: var(--clr-warn-bg);       color: #b45309; }
   &.status-closed      { background: var(--clr-success-bg);    color: var(--clr-success); }
   &.status-default     { background: #f3e8ff;                  color: #7c3aed; }
 }
+
+// alias so existing .status-chip references still work
+.status-chip { @extend .chip; }
 
 // ── AG Grid cell alignment ───────────────────────────────────────────────────
 // Full chain: .ag-cell → .ag-cell-wrapper → .ag-cell-value → cellRenderer output

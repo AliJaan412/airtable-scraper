@@ -1,59 +1,14 @@
-import puppeteerExtra from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import type { Browser, Page, Cookie } from 'puppeteer';
+import * as os from 'os';
+import * as path from 'path';
+import type { Browser, Page } from 'puppeteer';
 import axios from 'axios';
-
-// Apply stealth plugin once at module load — patches navigator.webdriver, chrome runtime,
-// plugin arrays, etc. so Cloudflare/Airtable bot detection doesn't block the login page.
-puppeteerExtra.use(StealthPlugin());
-
-interface PendingSession {
-  browser: Browser;
-  page: Page;
-  resolve: (cookies: string) => void;
-  reject: (err: Error) => void;
-  timer: NodeJS.Timeout;
-  // Set when verification code step precedes the real login form
-  postVerificationCredentials?: { email: string; password: string };
-}
+import { PendingSession } from '../interfaces/scraper.interfaces';
+import { launchBrowser, serializeCookies, getUserChromeDataDir } from '../helpers/browser.helpers';
 
 const pendingSessions = new Map<string, PendingSession>();
 
 // Keep browsers alive from login so we can reuse them for scraping without re-injecting cookies
 const liveBrowsers = new Map<string, { browser: Browser; page: Page }>();
-
-async function launchBrowser(opts: { headless?: boolean } = {}): Promise<Browser> {
-  const { headless = true } = opts;
-  // Use a persistent user-data-dir so Chrome looks like a real installed browser
-  // (not a fresh throwaway profile Cloudflare recognises as a bot).
-  const path = await import('path');
-  const fs = await import('fs');
-  const profileDir = path.default.resolve(__dirname, '../../../../chrome-profile');
-  if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
-
-  const browser = await puppeteerExtra.launch({
-    headless,
-    userDataDir: profileDir,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-infobars',
-      '--disable-dev-shm-usage',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-popup-blocking',
-      '--window-size=1280,900',
-      '--lang=en-US,en',
-    ],
-  });
-
-  return browser;
-}
-
-function serializeCookies(cookies: Cookie[]): string {
-  return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
-}
 
 export const CookieService = {
   /**
@@ -167,23 +122,73 @@ export const CookieService = {
             });
           });
         } else {
-          // CAPTCHA challenge (e.g. hCaptcha) — headless browser can't solve it.
-          // Re-launch visibly so the user can solve it manually on this machine.
-          console.log('[Auth] CAPTCHA detected — relaunching Chrome in visible mode for manual solve');
+          // CAPTCHA challenge (DataDome "Press and hold") — headless browser can't solve it.
+          //
+          // Strategy: relaunch visibly using the USER'S REAL Chrome profile.
+          // Their profile has an existing Airtable session + DataDome trust history
+          // from real browsing, so DataDome is far less likely to challenge it.
+          // If already logged in, the browser navigates straight to the dashboard
+          // and we extract cookies without any user interaction at all.
+          //
+          // If the real profile is locked (Chrome already running), fall back to temp.
+          console.log('[Auth] CAPTCHA detected — relaunching Chrome in visible mode');
           await browser.close();
-          browser = await launchBrowser({ headless: false });
+
+          const userChromeDir = getUserChromeDataDir();
+          let captchaProfileDir = path.join(os.tmpdir(), `sred-captcha-${Date.now()}`);
+
+          if (userChromeDir) {
+            console.log('[Auth] Attempting to use real Chrome profile (may already have Airtable session):', userChromeDir);
+            try {
+              browser = await launchBrowser({ headless: false, profileDir: userChromeDir });
+              captchaProfileDir = userChromeDir;
+              console.log('[Auth] Real Chrome profile loaded successfully');
+            } catch (profileErr: any) {
+              console.log('[Auth] Real Chrome profile unavailable (Chrome may be running) — using temp profile:', profileErr.message);
+              browser = await launchBrowser({ headless: false, profileDir: captchaProfileDir });
+            }
+          } else {
+            browser = await launchBrowser({ headless: false, profileDir: captchaProfileDir });
+          }
+
           page = await browser.newPage();
           await page.setUserAgent(
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
           );
           await page.setViewport({ width: 1280, height: 900 });
-          await page.goto('https://airtable.com/login', { waitUntil: 'networkidle2', timeout: 40000 });
+
+          const loginNav = await page.goto('https://airtable.com/login', { waitUntil: 'networkidle2', timeout: 40000 });
+          const loginStatus = loginNav?.status() ?? 0;
+
+          // 403 = DataDome has blocked this IP entirely — no amount of browser interaction will help.
+          if (loginStatus === 403) {
+            await browser.close();
+            throw new Error(
+              'Your IP address has been temporarily blocked by Airtable\'s security system. ' +
+              'Please wait 20–30 minutes and try again. Avoid retrying during the cool-down — ' +
+              'each failed attempt extends the block.',
+            );
+          }
+
           onStatusChange('awaiting_captcha');
 
+          // ── Check if the real profile was already logged in ──────────────────
+          // If the profile had an active Airtable session, /login redirects to dashboard.
+          const afterLoginUrl = page.url();
+          if (!afterLoginUrl.includes('/login') && !afterLoginUrl.includes('/verify') && !afterLoginUrl.includes('captcha')) {
+            console.log('[Auth] Real Chrome profile already authenticated — extracting cookies');
+            const cookies = await page.cookies();
+            const cookieStr = serializeCookies(cookies);
+            liveBrowsers.set(sessionId, { browser, page });
+            onStatusChange('running');
+            return cookieStr;
+          }
+
           // Poll every 600 ms for up to 3 minutes.
-          // waitForFunction fires immediately because the CAPTCHA page already contains
-          // a hidden <input> (the CAPTCHA token field), so "any input" is the wrong signal.
-          // Instead, watch the URL: once the page leaves /login the CAPTCHA is solved.
+          // After DataDome "Press and hold" passes, Airtable renders the email form
+          // on the SAME /login URL (SPA navigation) — we can't rely on URL change alone.
+          // Scan ALL frames (not just main document) because Airtable's login form
+          // can be inside an iframe, making querySelectorAll on the top frame return 0 inputs.
           const CAPTCHA_DEADLINE = Date.now() + 180000;
           let captchaOutcome: 'authenticated' | 'email_form' | 'code_form' | 'timeout' = 'timeout';
 
@@ -191,25 +196,44 @@ export const CookieService = {
             try {
               const currentUrl = page.url();
 
-              // Navigated away from login/verify → CAPTCHA solved, session active
+              // Navigated fully away from login/verify → already authenticated
               if (!currentUrl.includes('/login') && !currentUrl.includes('/verify') && !currentUrl.includes('captcha')) {
                 captchaOutcome = 'authenticated';
                 break;
               }
 
-              // Visible email input → login form appeared; fall through to login flow
-              const emailEl = await page.$('input[name="email"], input[type="email"], input[autocomplete="email"]').catch(() => null);
-              if (emailEl) {
-                const vis = await page.evaluate((el: any) => el.type !== 'hidden' && el.offsetParent !== null, emailEl).catch(() => false);
-                if (vis) { captchaOutcome = 'email_form'; break; }
+              // Scan ALL frames — login form may live inside an iframe (e.g. after DataDome dismiss)
+              const formState = { hasEmail: false, hasCode: false, hasText: false, inputCount: 0 };
+              for (const frame of page.frames()) {
+                try {
+                  const frameResult = await frame.evaluate(() => {
+                    const isVisible = (el: Element) => {
+                      const s = window.getComputedStyle(el);
+                      return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0' && (el as HTMLElement).offsetParent !== null;
+                    };
+                    const inputs = Array.from(document.querySelectorAll('input')).filter(isVisible);
+                    const hasEmail = inputs.some((i) =>
+                      i.type === 'email' || i.name === 'email' || i.autocomplete === 'email' ||
+                      i.autocomplete === 'username' || /email/i.test(i.placeholder) || /email/i.test(i.name),
+                    );
+                    const hasCode = !hasEmail && inputs.some((i) =>
+                      i.type === 'number' || i.type === 'tel' ||
+                      /code|otp|pin|digit|token/i.test(i.name + ' ' + i.placeholder),
+                    );
+                    const hasText = !hasEmail && !hasCode && inputs.some((i) => i.type === 'text');
+                    return { hasEmail, hasCode, hasText, inputCount: inputs.length };
+                  });
+                  formState.inputCount += frameResult.inputCount;
+                  if (frameResult.hasEmail) formState.hasEmail = true;
+                  if (frameResult.hasCode)  formState.hasCode  = true;
+                  if (frameResult.hasText)  formState.hasText  = true;
+                } catch { /* cross-origin or mid-navigation frame — skip */ }
               }
 
-              // Visible code input → email verification step
-              const codeEl = await page.$('input[type="number"], input[name*="code"], input[placeholder*="code"]').catch(() => null);
-              if (codeEl) {
-                const vis = await page.evaluate((el: any) => el.type !== 'hidden' && el.offsetParent !== null, codeEl).catch(() => false);
-                if (vis) { captchaOutcome = 'code_form'; break; }
-              }
+              console.log(`[Auth] CAPTCHA poll — url: ${currentUrl}  inputs: ${JSON.stringify(formState)}`);
+
+              if (formState.hasEmail || formState.hasText) { captchaOutcome = 'email_form'; break; }
+              if (formState.hasCode) { captchaOutcome = 'code_form'; break; }
             } catch (_e) { /* page mid-navigation — retry next tick */ }
 
             await new Promise((r) => setTimeout(r, 600));
@@ -617,8 +641,8 @@ export const CookieService = {
     }
 
     // ── Phase 3: fetch using the confirmed endpoint URL ───────────────────
-    // Discovered via discoverActivityEndpoint:
-    //   GET /v0.3/row/{recordId}/readRowComments
+    // Discovered via Airtable network inspection and experimentation in the browser:
+    //   GET /v0.3/row/{recordId}/readRowActivitiesAndComments
     //   with stringifiedObjectParams JSON including shouldIncludeOnlyRowLevelComments:false
     const fetchResult = await page.evaluate(
       async (params: { baseId: string; tableId: string; recordId: string }) => {

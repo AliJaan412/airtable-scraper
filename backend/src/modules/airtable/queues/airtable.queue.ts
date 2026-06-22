@@ -4,6 +4,13 @@ import { AirtableService } from '../services/airtable.service';
 
 const QUEUE_NAME = 'airtable-sync';
 
+// In-memory state for inline syncs (used when Redis is unavailable)
+const inlineSyncState = new Map<string, {
+  state: 'active' | 'completed' | 'failed';
+  result?: Record<string, number>;
+  failedReason?: string;
+}>();
+
 // 2 attempts — sync is expensive, don't retry too aggressively
 const JOB_OPTS = {
   attempts: 2,
@@ -36,9 +43,13 @@ export async function enqueueAirtableSyncJob(organizationId: string): Promise<st
     return job.id ?? organizationId;
   } catch (err: any) {
     console.warn('[AirtableQueue] Redis unavailable — running sync inline (no retry):', err.message);
-    AirtableService.syncAll(organizationId).catch((e) => {
-      console.error('[AirtableQueue] inline fallback error:', e.message);
-    });
+    inlineSyncState.set(organizationId, { state: 'active' });
+    AirtableService.syncAll(organizationId)
+      .then((result) => inlineSyncState.set(organizationId, { state: 'completed', result }))
+      .catch((e) => {
+        console.error('[AirtableQueue] inline fallback error:', e.message);
+        inlineSyncState.set(organizationId, { state: 'failed', failedReason: e.message });
+      });
     return organizationId;
   }
 }
@@ -46,7 +57,10 @@ export async function enqueueAirtableSyncJob(organizationId: string): Promise<st
 export async function getAirtableSyncStatus(organizationId: string): Promise<{ state: string; result?: any; failedReason?: string } | null> {
   try {
     const job = await Job.fromId(getAirtableQueue(), `airtable-sync:${organizationId}`);
-    if (!job) return null;
+    if (!job) {
+      // Job not found in BullMQ — check inline fallback state before reporting idle
+      return inlineSyncState.get(organizationId) ?? null;
+    }
     const state = await job.getState();
     return {
       state,
@@ -54,7 +68,8 @@ export async function getAirtableSyncStatus(organizationId: string): Promise<{ s
       failedReason: state === 'failed' ? job.failedReason : undefined,
     };
   } catch {
-    return null;
+    // Redis unavailable — report inline fallback state if available
+    return inlineSyncState.get(organizationId) ?? null;
   }
 }
 

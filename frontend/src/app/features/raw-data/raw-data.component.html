@@ -86,25 +86,45 @@
         <p>No data found for <strong>{{ collectionLabel(selectedCollection) }}</strong></p>
       </div>
     } @else {
-      <ag-grid-angular
-        class="ag-theme-material"
-        style="width: 100%; height: 100%"
-        [columnDefs]="columnDefs()"
-        [rowData]="rowData()"
-        [defaultColDef]="defaultColDef"
-        [autoSizeStrategy]="autoSizeStrategy"
-        [pagination]="true"
-        [paginationPageSize]="pageSize"
-        [paginationPageSizeSelector]="[25, 50, 100, 200]"
-        [suppressPaginationPanel]="false"
-        [animateRows]="true"
-        [enableCellTextSelection]="true"
-        (gridReady)="onGridReady($event)"
-        (cellClicked)="onCellClicked($event)"
-        (paginationChanged)="onPaginationChanged($event)"
-        (sortChanged)="onSortChanged($event)"
-        (filterChanged)="onFilterChanged()"
-      />
+      <div class="grid-wrapper">
+        <ag-grid-angular
+          class="ag-theme-material"
+          style="width: 100%; height: 100%"
+          [columnDefs]="columnDefs()"
+          [rowData]="rowData()"
+          [defaultColDef]="defaultColDef"
+          [autoSizeStrategy]="autoSizeStrategy"
+          [animateRows]="true"
+          [enableCellTextSelection]="true"
+          (gridReady)="onGridReady($event)"
+          (cellClicked)="onCellClicked($event)"
+          (sortChanged)="onSortChanged($event)"
+          (filterChanged)="onFilterChanged()"
+        />
+      </div>
+      <div class="pagination-bar">
+        <span class="page-size-label">Rows per page:</span>
+        <select class="page-size-select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange($event)">
+          @for (size of pageSizeOptions; track size) {
+            <option [ngValue]="size">{{ size }}</option>
+          }
+        </select>
+        <div class="page-nav">
+          <button mat-icon-button
+            [disabled]="pageInfo().page <= 1 || loading()"
+            (click)="goToPage(pageInfo().page - 1)"
+            matTooltip="Previous page">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <span class="page-label">Page {{ pageInfo().page }} of {{ pageInfo().totalPages }}</span>
+          <button mat-icon-button
+            [disabled]="pageInfo().page >= pageInfo().totalPages || loading()"
+            (click)="goToPage(pageInfo().page + 1)"
+            matTooltip="Next page">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </div>
     }
   </div>
 </div>

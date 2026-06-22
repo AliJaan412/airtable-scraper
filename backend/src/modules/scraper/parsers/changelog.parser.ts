@@ -487,7 +487,7 @@ export function parseActivities(
         : parsed.activities || parsed.rowActivities || parsed.data || parsed.items || [];
       if (Array.isArray(arr)) return parseJsonActivities(arr, issueId, baseId, tableId);
     } catch {
-      // Not JSON — treat as HTML
+      console.warn('Failed to parse activities as JSON, treating as HTML');
     }
     return parseHtmlActivities(raw, issueId, baseId, tableId);
   }

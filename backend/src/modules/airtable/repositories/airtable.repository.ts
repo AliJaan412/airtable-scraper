@@ -42,7 +42,7 @@ export class AirtableRepository {
   async upsertBase(organizationId: string, baseId: string, data: Partial<IAirtableBase>): Promise<IAirtableBase> {
     return AirtableBaseModel.findOneAndUpdate(
       { organizationId, baseId },
-      { ...data, organizationId, baseId, syncedAt: new Date() },
+      { $set: { ...data, organizationId, baseId, syncedAt: new Date() } },
       { upsert: true, new: true },
     );
   }
@@ -72,7 +72,7 @@ export class AirtableRepository {
   async upsertRecord(organizationId: string, baseId: string, tableId: string, recordId: string, data: Partial<IAirtableRecord>): Promise<IAirtableRecord> {
     return AirtableRecordModel.findOneAndUpdate(
       { organizationId, baseId, tableId, recordId },
-      { ...data, organizationId, baseId, tableId, recordId, syncedAt: new Date() },
+      { $set: { ...data, organizationId, baseId, tableId, recordId, syncedAt: new Date() } },
       { upsert: true, new: true },
     );
   }
@@ -101,7 +101,7 @@ export class AirtableRepository {
   async upsertUser(organizationId: string, userId: string, data: Partial<IAirtableUser>): Promise<IAirtableUser> {
     return AirtableUserModel.findOneAndUpdate(
       { organizationId, userId },
-      { ...data, organizationId, userId, syncedAt: new Date() },
+      { $set: { ...data, organizationId, userId, syncedAt: new Date() } },
       { upsert: true, new: true },
     );
   }

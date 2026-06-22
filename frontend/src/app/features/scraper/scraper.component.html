@@ -77,10 +77,20 @@
                   </button>
                 </mat-form-field>
                 @if (session()?.status === 'failed' && !isAuthExpired()) {
-                  <div class="alert alert--error">
-                    <mat-icon>error_outline</mat-icon>
-                    {{ session()?.error }}
-                  </div>
+                  @if (session()?.error?.includes('blocked') || session()?.error?.includes('IP')) {
+                    <div class="alert alert--error">
+                      <mat-icon>block</mat-icon>
+                      <div>
+                        <strong>IP temporarily blocked by Airtable</strong>
+                        <div style="margin-top: 4px; font-size: 0.85em;">Wait 20–30 minutes before trying again. Retrying too soon extends the block.</div>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="alert alert--error">
+                      <mat-icon>error_outline</mat-icon>
+                      {{ session()?.error }}
+                    </div>
+                  }
                 }
               </div>
             }
@@ -92,7 +102,11 @@
           } @else if (session()?.status === 'awaiting_captcha') {
             <div class="status-banner status-banner--warn">
               <mat-icon>open_in_new</mat-icon>
-              <span>A Chrome window opened on this machine &mdash; solve the verification challenge and login will continue automatically.</span>
+              <span>
+                A Chrome window opened on this machine using your saved browser profile.
+                If you&rsquo;re already logged into Airtable, authentication will complete automatically.
+                Otherwise, log in in that window and it will continue.
+              </span>
             </div>
           } @else {
             <div class="status-banner status-banner--success">
@@ -176,9 +190,23 @@
           </div>
           <div class="step-body">
             <div class="alert alert--warn">
-              <mat-icon>security</mat-icon>
-              A Chrome window opened on this machine. Complete the CAPTCHA or click "Send code" in that window &mdash; login will resume automatically once verified.
+              <mat-icon>open_in_new</mat-icon>
+              <strong>Chrome opened with your saved browser profile.</strong>
+              <ul style="margin: 8px 0 0; padding-left: 18px;">
+                <li>If already logged into Airtable &rarr; authentication completes automatically</li>
+                <li>If a security challenge appears &rarr; complete it as you normally would</li>
+                <li>If a login form appears &rarr; sign in and wait for this screen to advance</li>
+              </ul>
             </div>
+            @if (session()?.error?.includes('blocked') || session()?.error?.includes('IP')) {
+              <div class="alert alert--error" style="margin-top: 12px;">
+                <mat-icon>block</mat-icon>
+                <div>
+                  <strong>IP temporarily blocked by Airtable</strong>
+                  <div>Wait 20&ndash;30 minutes before trying again. Each retry during the cool-down extends the block.</div>
+                </div>
+              </div>
+            }
           </div>
         </div>
       }

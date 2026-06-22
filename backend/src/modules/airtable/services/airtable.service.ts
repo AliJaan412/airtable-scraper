@@ -1,112 +1,17 @@
-import crypto from 'crypto';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import { config } from '../../../config';
 import { AirtableRepository } from '../repositories/airtable.repository';
-import { IAirtableConnection } from '../schemas/airtable-connection.schema';
 import { cache } from '../../../common/cache';
+import {
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateState,
+  basicAuthHeader,
+  refreshAccessToken,
+  airtableGet,
+} from '../helpers/airtable.helpers';
 
 const repo = new AirtableRepository();
-
-// Airtable enforces 5 req/sec per base. We stay well under that.
-const AIRTABLE_RATE_LIMIT_DELAY_MS = 220; // ~4.5 req/sec
-const MAX_RETRIES = 4;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function generateCodeVerifier(): string {
-  return crypto.randomBytes(32).toString('base64url');
-}
-
-function generateCodeChallenge(verifier: string): string {
-  return crypto.createHash('sha256').update(verifier).digest('base64url');
-}
-
-function generateState(): string {
-  return crypto.randomBytes(16).toString('hex');
-}
-
-function basicAuthHeader(): string {
-  const credentials = Buffer.from(`${config.airtable.clientId}:${config.airtable.clientSecret}`).toString('base64');
-  return `Basic ${credentials}`;
-}
-
-async function getValidToken(organizationId: string): Promise<string> {
-  const conn = await repo.getConnection(organizationId);
-  if (!conn || !conn.accessToken) throw new Error('Airtable not connected for this organization');
-
-  if (conn.expiresAt && conn.expiresAt <= new Date()) {
-    return refreshAccessToken(organizationId, conn);
-  }
-  return conn.accessToken;
-}
-
-async function refreshAccessToken(organizationId: string, conn: IAirtableConnection): Promise<string> {
-  const params = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: conn.refreshToken,
-  });
-
-  const response = await axios.post(config.airtable.tokenUrl, params.toString(), {
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': basicAuthHeader(),
-    },
-  });
-
-  const { access_token, refresh_token, expires_in, scope } = response.data;
-  const expiresAt = new Date(Date.now() + expires_in * 1000);
-
-  // Invalidate cached status on token refresh
-  await cache.del(`airtable:status:${organizationId}`);
-
-  await repo.upsertConnection(organizationId, {
-    accessToken: access_token,
-    refreshToken: refresh_token || conn.refreshToken,
-    expiresAt,
-    scope,
-  });
-
-  return access_token;
-}
-
-/**
- * Airtable GET with automatic 429 retry and exponential backoff.
- * Respects the Retry-After header when present.
- */
-async function airtableGet<T>(
-  organizationId: string,
-  path: string,
-  params?: Record<string, any>,
-  attempt = 0,
-): Promise<T> {
-  const token = await getValidToken(organizationId);
-
-  try {
-    await sleep(AIRTABLE_RATE_LIMIT_DELAY_MS);
-    const response = await axios.get(`${config.airtable.baseUrl}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params,
-    });
-    return response.data;
-  } catch (err) {
-    const axiosErr = err as AxiosError;
-
-    if (axiosErr.response?.status === 429 && attempt < MAX_RETRIES) {
-      const retryAfter = axiosErr.response.headers['retry-after'];
-      const waitMs = retryAfter
-        ? parseInt(retryAfter, 10) * 1000
-        : Math.min(1000 * 2 ** attempt, 30_000); // 1s, 2s, 4s, 8s cap 30s
-
-      console.warn(`[Airtable] 429 rate limited — retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
-      await sleep(waitMs);
-      return airtableGet(organizationId, path, params, attempt + 1);
-    }
-
-    throw err;
-  }
-}
 
 export const AirtableService = {
   // OAuth
@@ -294,8 +199,8 @@ export const AirtableService = {
         console.log(`[Users] source=enterprise  count=${total}`);
         return { total, source: 'enterprise' };
       }
-    } catch {
-      // Enterprise endpoint unavailable on this plan — fall back below
+    } catch (err: any) {
+      console.log('[Users] enterprise /meta/users unavailable (HTTP', err?.response?.status ?? 'n/a', ') — falling back to standard endpoints');
     }
 
     // Fallback: GET /meta/whoami + GET /meta/bases/{id}/collaborators (standard plan)
@@ -411,8 +316,8 @@ export const AirtableService = {
     try {
       const result = await AirtableService.syncUsers(organizationId);
       users = result.total;
-    } catch {
-      // Users endpoint may not be available in all plans
+    } catch (err: any) {
+      console.warn('[syncAll] syncUsers failed:', err?.message ?? err);
     }
 
     await repo.updateConnection(organizationId, { lastSyncedAt: new Date() });

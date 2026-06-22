@@ -167,6 +167,11 @@ export class AirtableState {
           // Job finished and was removed from the queue — backend no longer returns 'completed'
           // Stop the syncing flag so the poller in the component clears itself
           ctx.patchState({ syncing: false });
+        } else if (['active', 'waiting', 'delayed'].includes(status.state)) {
+          // Sync is in progress — restore syncing flag (e.g. after a page refresh)
+          if (!ctx.getState().syncing) {
+            ctx.patchState({ syncing: true });
+          }
         }
       }),
       catchError(() => EMPTY),

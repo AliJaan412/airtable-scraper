@@ -136,6 +136,57 @@
   overflow: hidden;
   background: var(--clr-surface);
   border: 1px solid var(--clr-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.grid-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pagination-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--clr-border);
+  background: var(--clr-surface);
+
+  .page-size-label {
+    font-size: 12.5px;
+    color: var(--clr-text-muted);
+    margin-right: 6px;
+  }
+
+  .page-size-select {
+    height: 30px;
+    padding: 0 8px;
+    font-size: 13px;
+    border: 1px solid var(--clr-border);
+    border-radius: 4px;
+    background: var(--clr-surface);
+    color: var(--clr-text);
+    cursor: pointer;
+    outline: none;
+
+    &:focus { border-color: var(--clr-primary); }
+  }
+
+  .page-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .page-label {
+    font-size: 13px;
+    color: var(--clr-text-mid);
+    min-width: 110px;
+    text-align: center;
+  }
 }
 
 .empty-state {

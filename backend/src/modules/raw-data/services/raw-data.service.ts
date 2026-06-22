@@ -1,48 +1,8 @@
 import mongoose from 'mongoose';
+import { RawDataQuery } from '../interfaces/raw-data-query.interface';
+import { ALLOWED_COLLECTIONS, discoverStringFields } from '../helpers/raw-data.helpers';
 
-export interface RawDataQuery {
-  organizationId: string;
-  collection: string;
-  search?: string;
-  page?: number;
-  pageSize?: number;
-  sortField?: string;
-  sortOrder?: 'asc' | 'desc';
-  filters?: Record<string, any>;
-}
-
-const ALLOWED_COLLECTIONS = [
-  'airtable_bases',
-  'airtable_tables',
-  'airtable_records',
-  'airtable_users',
-  'airtable_changelogs',
-  'scraper_sessions',
-];
-
-async function discoverStringFields(col: any, organizationId: string): Promise<string[]> {
-  const sample = await col.findOne({ organizationId });
-  if (!sample) return [];
-
-  const fields: string[] = [];
-
-  for (const [key, val] of Object.entries(sample)) {
-    if (key === '_id' || key === '__v') continue;
-
-    if (typeof val === 'string') {
-      fields.push(key);
-    } else if (val && typeof val === 'object' && !Array.isArray(val)) {
-      // One level deep — catches nested objects like `fields.Name`, `fields.Status` in airtable_records
-      for (const [nestedKey, nestedVal] of Object.entries(val as object)) {
-        if (typeof nestedVal === 'string') {
-          fields.push(`${key}.${nestedKey}`);
-        }
-      }
-    }
-  }
-
-  return fields;
-}
+export type { RawDataQuery };
 
 export const RawDataService = {
   getAllowedCollections(): string[] {

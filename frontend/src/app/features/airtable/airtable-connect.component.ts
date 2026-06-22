@@ -66,6 +66,12 @@ export class AirtableConnectComponent implements OnInit, OnDestroy {
       .subscribe(() => { this.autoSyncIfStale(); });
     this.store.dispatch(new AirtableActions.LoadBases());
     this.store.dispatch(new AirtableActions.LoadSyncCounts());
+    // Restore syncing state after navigation or page refresh
+    this.store.dispatch(new AirtableActions.CheckSyncStatus())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (this.syncing()) this.startSyncPoller();
+      });
   }
 
   ngOnDestroy(): void {
@@ -100,6 +106,7 @@ export class AirtableConnectComponent implements OnInit, OnDestroy {
   private autoSyncIfStale(): void {
     const status = this.status();
     if (!status?.connected || status?.isExpired) return;
+    if (this.syncing()) return;
     const lastSynced = status.lastSyncedAt;
     if (!lastSynced) return;
     const ageMinutes = (Date.now() - new Date(lastSynced).getTime()) / 60000;

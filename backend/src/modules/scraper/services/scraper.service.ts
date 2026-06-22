@@ -3,6 +3,7 @@ import { CookieService } from './cookie.service';
 import { ScraperRepository } from '../repositories/scraper.repository';
 import { AirtableRepository } from '../../airtable/repositories/airtable.repository';
 import { parseActivities } from '../parsers/changelog.parser';
+import { sleep } from '../../../common/utils';
 
 const scraperRepo = new ScraperRepository();
 const airtableRepo = new AirtableRepository();
@@ -10,10 +11,6 @@ const airtableRepo = new AirtableRepository();
 // 3 parallel requests per batch with 1s gap ≈ 3 req/sec — safe under Airtable's scraping tolerance
 const BATCH_SIZE = 3;
 const DELAY_MS = 1000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 export const ScraperService = {
   async initiateAuth(

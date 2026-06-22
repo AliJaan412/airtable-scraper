@@ -100,6 +100,16 @@ async function shutdown(signal: string) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
+// Prevent Puppeteer browser-launch failures from crashing the entire server.
+// Chrome can crash/fail inside a synchronous ChildProcess event handler, which
+// escapes the Promise chain and surfaces here as an uncaught exception.
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught exception (server kept alive):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Unhandled rejection (server kept alive):', reason);
+});
+
 bootstrap().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);

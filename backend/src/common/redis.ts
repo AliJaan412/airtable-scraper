@@ -43,7 +43,8 @@ export async function isRedisAvailable(): Promise<boolean> {
     const client = getRedisClient();
     await client.ping();
     return true;
-  } catch {
+  } catch (err: any) {
+    console.warn('[Redis] ping failed:', err?.message ?? err);
     return false;
   }
 }
@@ -63,7 +64,8 @@ export async function isRedisCompatible(): Promise<boolean> {
       return false;
     }
     return true;
-  } catch {
+  } catch (err: any) {
+    console.warn('[Redis] compatibility check failed:', err?.message ?? err);
     return false;
   }
 }
