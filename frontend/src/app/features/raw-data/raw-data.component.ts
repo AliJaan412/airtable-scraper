@@ -357,8 +357,8 @@ export class RawDataComponent implements OnInit, OnDestroy {
 
     // ── Column type badge ──────────────────────────────────────────────────
     if (field === 'columnType') {
-      const color = value === 'status' ? '#1976d2' : '#7b1fa2';
-      return `<span style="font-size:11px;font-weight:600;color:${color};background:${color}18;padding:2px 8px;border-radius:10px">${value}</span>`;
+      const color = value === 'status' ? '#1976d2' : value === 'priority' ? '#b45309' : '#7b1fa2';
+      return `<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500;color:${color};background:${color}18;white-space:nowrap">${value}</span>`;
     }
 
     return String(value);

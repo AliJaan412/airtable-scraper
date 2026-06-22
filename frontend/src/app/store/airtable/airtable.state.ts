@@ -163,6 +163,10 @@ export class AirtableState {
           });
         } else if (status.state === 'failed') {
           ctx.patchState({ syncing: false, error: status.failedReason || 'Sync failed' });
+        } else if (status.state === 'idle') {
+          // Job finished and was removed from the queue — backend no longer returns 'completed'
+          // Stop the syncing flag so the poller in the component clears itself
+          ctx.patchState({ syncing: false });
         }
       }),
       catchError(() => EMPTY),

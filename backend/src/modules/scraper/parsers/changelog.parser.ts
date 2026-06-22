@@ -14,18 +14,24 @@ export interface ParsedActivity {
   rawActivity: Record<string, any>;
 }
 
-const TRACKED_FIELD_NAMES = ['status', 'assignee'];
+const TRACKED_FIELD_NAMES = ['status', 'assignee', 'priority'];
 
 function normaliseColumnType(fieldName: string, dataColumnType?: string): string {
   const lower = (fieldName + ' ' + (dataColumnType ?? '')).toLowerCase();
   if (lower.includes('status')) return 'status';
   if (lower.includes('assign') || dataColumnType === 'collaborator') return 'assignee';
+  if (lower.includes('priority')) return 'priority';
   return lower.trim();
 }
 
 function isTracked(colType: string): boolean {
   return TRACKED_FIELD_NAMES.some((t) => colType.includes(t));
 }
+
+// Groups where the activity is an automated row creation (e.g. Sred.io syncing
+// a ticket into Airtable). These are not human-authored field changes and should
+// not produce changelog entries.
+const SKIP_GROUP_TYPES = new Set(['apiRowCreate', 'rowCreate']);
 
 function extractValue(val: any): string | null {
   if (val === null || val === undefined) return null;
@@ -371,6 +377,9 @@ function parseReadRowActivitiesResponse(
   for (const id of orderedIds) {
     const activity = activitiesById[id];
     if (!activity?.diffRowHtml) continue;
+
+    // Skip automated row-create events — they carry initial values, not diffs
+    if (SKIP_GROUP_TYPES.has(activity.groupType)) continue;
 
     const user = usersById[activity.originatingUserId] ?? {};
     const authoredBy: string = (user.name ?? user.email ?? activity.originatingUserId) || 'unknown';

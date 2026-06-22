@@ -104,7 +104,9 @@ export class AirtableConnectComponent implements OnInit, OnDestroy {
     if (!lastSynced) return;
     const ageMinutes = (Date.now() - new Date(lastSynced).getTime()) / 60000;
     if (ageMinutes > 30) {
-      this.store.dispatch(new AirtableActions.SyncAll());
+      this.store.dispatch(new AirtableActions.SyncAll())
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.startSyncPoller());
     }
   }
 
