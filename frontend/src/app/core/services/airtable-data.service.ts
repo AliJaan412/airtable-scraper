@@ -14,18 +14,18 @@ export interface QueryParams {
 }
 
 @Injectable({ providedIn: 'root' })
-export class RawDataService {
+export class AirtableDataService {
   private readonly api = inject(ApiService);
 
   getCollections(): Observable<string[]> {
-    return this.api.get<string[]>('/raw-data/collections').pipe(map((r) => r.data));
+    return this.api.get<string[]>('/airtable-data/collections').pipe(map((r) => r.data));
   }
 
   getSchema(collection: string): Observable<string[]> {
-    return this.api.get<string[]>(`/raw-data/schema/${collection}`).pipe(map((r) => r.data));
+    return this.api.get<string[]>(`/airtable-data/schema/${collection}`).pipe(map((r) => r.data));
   }
 
   query(params: QueryParams): Observable<ApiResponse<any[]>> {
-    return this.api.post<any[]>('/raw-data/query', params);
+    return this.api.post<any[]>('/airtable-data/query', params);
   }
 }

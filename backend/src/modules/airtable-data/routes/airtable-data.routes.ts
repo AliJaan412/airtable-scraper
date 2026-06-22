@@ -1,18 +1,18 @@
 import { Router } from 'express';
-import { RawDataController } from '../controllers/raw-data.controller';
+import { AirtableDataController } from '../controllers/airtable-data.controller';
 
 const router = Router();
 
 /**
  * @swagger
- * /api/raw-data/collections:
+ * /api/airtable-data/collections:
  *   get:
  *     summary: List available collections
  *     description: >
- *       Returns the names of all MongoDB collections that can be queried via `POST /api/raw-data/query`.
+ *       Returns the names of all MongoDB collections that can be queried via `POST /api/airtable-data/query`.
  *       Any other collection name will be rejected with a 400 error.
  *       Available collections: airtable_bases, airtable_tables, airtable_records, airtable_users, airtable_changelogs, scraper_sessions.
- *     tags: [RawData]
+ *     tags: [AirtableData]
  *     responses:
  *       200:
  *         description: List of allowed collection names
@@ -27,18 +27,18 @@ const router = Router();
  *                   items: { type: string }
  *                   example: ["airtable_bases", "airtable_tables", "airtable_records", "airtable_users", "airtable_changelogs", "scraper_sessions"]
  */
-router.get('/collections', RawDataController.getCollections);
+router.get('/collections', AirtableDataController.getCollections);
 
 /**
  * @swagger
- * /api/raw-data/schema/{collection}:
+ * /api/airtable-data/schema/{collection}:
  *   get:
  *     summary: Get field names for a collection
  *     description: >
  *       Samples up to 100 documents from the collection (scoped to the current organization)
  *       and returns all unique top-level field names found.
  *       Used by the frontend to build AG Grid column headers dynamically without hardcoding schemas.
- *     tags: [RawData]
+ *     tags: [AirtableData]
  *     parameters:
  *       - $ref: '#/components/parameters/OrgId'
  *       - in: path
@@ -68,11 +68,11 @@ router.get('/collections', RawDataController.getCollections);
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/schema/:collection', RawDataController.getSchema);
+router.get('/schema/:collection', AirtableDataController.getSchema);
 
 /**
  * @swagger
- * /api/raw-data/query:
+ * /api/airtable-data/query:
  *   post:
  *     summary: Query any collection with search, filter, sort, and pagination
  *     description: >
@@ -86,7 +86,7 @@ router.get('/schema/:collection', RawDataController.getSchema);
  *       - Cursor-based pagination (`page` + `pageSize`, max 500)
  *       The response `_meta.fields` array lists the field names present in the returned documents
  *       — the frontend uses this to build column headers dynamically.
- *     tags: [RawData]
+ *     tags: [AirtableData]
  *     parameters:
  *       - $ref: '#/components/parameters/OrgId'
  *     requestBody:
@@ -129,39 +129,6 @@ router.get('/schema/:collection', RawDataController.getSchema);
  *                 example:
  *                   columnType: "Assignee"
  *                   baseId: "appXXXXXXXXXXXXXX"
- *           examples:
- *             All changelogs newest first:
- *               value:
- *                 collection: airtable_changelogs
- *                 page: 1
- *                 pageSize: 50
- *                 sortField: createdDate
- *                 sortOrder: desc
- *             Filter Assignee changes only:
- *               value:
- *                 collection: airtable_changelogs
- *                 filters:
- *                   columnType: "Assignee"
- *                 page: 1
- *                 pageSize: 100
- *             Search records by keyword:
- *               value:
- *                 collection: airtable_records
- *                 search: "Sprint 12"
- *                 filters:
- *                   tableId: "tblXXXXXXXXXXXXXX"
- *                 page: 1
- *                 pageSize: 100
- *             List all bases:
- *               value:
- *                 collection: airtable_bases
- *                 page: 1
- *                 pageSize: 50
- *             List all users:
- *               value:
- *                 collection: airtable_users
- *                 page: 1
- *                 pageSize: 100
  *     responses:
  *       200:
  *         description: Query results with pagination metadata
@@ -193,6 +160,6 @@ router.get('/schema/:collection', RawDataController.getSchema);
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/query', RawDataController.query);
+router.post('/query', AirtableDataController.query);
 
 export default router;

@@ -15,7 +15,13 @@ import { Store } from '@ngxs/store';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ScraperState } from '../../store/scraper/scraper.state';
 import { ScraperActions } from '../../store/scraper/scraper.actions';
-import type { ChangelogStats } from '../../store/scraper/scraper.state';
+import {
+  isAuthenticated,
+  isAuthExpired,
+  progressPct,
+  progressAttempted,
+  buildChartOptions,
+} from './helpers/scraper.helpers';
 
 @Component({
   selector: 'app-scraper',
@@ -51,29 +57,7 @@ export class ScraperComponent implements OnInit, OnDestroy {
   readonly error       = toSignal(this.store.select(ScraperState.error));
   readonly stats       = toSignal(this.store.select(ScraperState.stats));
 
-  readonly chartOptions = computed<AgChartOptions>(() => {
-    const s = this.stats();
-    // Double-cast needed: AgChartOptions is a wide union and TypeScript's
-    // discriminant narrowing struggles with object literals against it.
-    return {
-      data: [
-        { label: 'Status Changes',   count: s?.byType.status   ?? 0 },
-        { label: 'Assignee Changes', count: s?.byType.assignee ?? 0 },
-      ],
-      series: [{
-        type: 'donut',
-        calloutLabelKey: 'label',
-        angleKey: 'count',
-        innerRadiusRatio: 0.72,
-        fills: ['#04BCF3', '#029AC8'],
-        strokes: ['#ffffff'],
-        strokeWidth: 2,
-      }],
-      legend: { enabled: true, position: 'bottom' },
-      background: { fill: 'transparent' },
-      padding: { top: 4, bottom: 4 },
-    } as unknown as AgChartOptions;
-  });
+  readonly chartOptions = computed<AgChartOptions>(() => buildChartOptions(this.stats()));
 
   private statsRefreshedForSession = '';
 
@@ -100,29 +84,10 @@ export class ScraperComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  isAuthenticated(): boolean {
-    const s = this.session();
-    return !!s && (s.status === 'idle' || s.status === 'running' || s.status === 'completed');
-  }
-
-  isAuthExpired(): boolean {
-    const s = this.session();
-    if (!s || s.status !== 'failed') return false;
-    const err = (s.error ?? '').toLowerCase();
-    return err.includes('expired') || err.includes('re-authenticate') || err.includes('cookie') || err.includes('auth_expired');
-  }
-
-  progressPct(): number {
-    const s = this.session();
-    if (!s?.progress?.total) return 0;
-    const attempted = (s.progress.processed ?? 0) + (s.progress.failed ?? 0);
-    return Math.round((attempted / s.progress.total) * 100);
-  }
-
-  progressAttempted(): number {
-    const s = this.session();
-    return (s?.progress?.processed ?? 0) + (s?.progress?.failed ?? 0);
-  }
+  isAuthenticated(): boolean { return isAuthenticated(this.session()); }
+  isAuthExpired(): boolean   { return isAuthExpired(this.session()); }
+  progressPct(): number      { return progressPct(this.session()); }
+  progressAttempted(): number { return progressAttempted(this.session()); }
 
   startAuth(): void {
     if (!this.email || !this.password) return;

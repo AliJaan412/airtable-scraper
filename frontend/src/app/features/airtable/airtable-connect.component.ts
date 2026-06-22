@@ -9,6 +9,7 @@ import { Store } from '@ngxs/store';
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AirtableState } from '../../store/airtable/airtable.state';
 import { AirtableActions } from '../../store/airtable/airtable.actions';
+import { lastSyncedLabel, syncResultItems, SyncResultItem } from './helpers/airtable-connect.helpers';
 
 @Component({
   selector: 'app-airtable-connect',
@@ -39,24 +40,11 @@ export class AirtableConnectComponent implements OnInit, OnDestroy {
   readonly lastSyncedAt = toSignal(this.store.select(AirtableState.lastSyncedAt));
 
   lastSyncedLabel(): string {
-    const ts = this.lastSyncedAt();
-    if (!ts) return 'Never synced';
-    const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-    if (diff < 60) return 'Last synced just now';
-    if (diff < 3600) return `Last synced ${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `Last synced ${Math.floor(diff / 3600)}h ago`;
-    return `Last synced ${Math.floor(diff / 86400)}d ago`;
+    return lastSyncedLabel(this.lastSyncedAt() ?? undefined);
   }
 
-  syncResultItems() {
-    const r = this.syncResults();
-    if (!r) return [];
-    return [
-      { key: 'bases',   label: 'Bases',   count: r['bases']   ?? 0, icon: 'folder' },
-      { key: 'tables',  label: 'Tables',  count: r['tables']  ?? 0, icon: 'table_chart' },
-      { key: 'records', label: 'Tickets', count: r['records'] ?? 0, icon: 'article' },
-      { key: 'users',   label: 'Users',   count: r['users']   ?? 0, icon: 'group' },
-    ];
+  syncResultItems(): SyncResultItem[] {
+    return syncResultItems(this.syncResults() as Record<string, unknown>);
   }
 
   ngOnInit(): void {

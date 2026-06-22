@@ -1,4 +1,4 @@
-export interface RawDataQuery {
+export interface AirtableDataQuery {
   organizationId: string;
   collection: string;
   search?: string;

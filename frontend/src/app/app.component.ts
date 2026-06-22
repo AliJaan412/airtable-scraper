@@ -19,7 +19,7 @@ export class AppComponent {
   navOpen = signal(window.innerWidth > 768);
 
   navItems: NavItem[] = [
-    { label: 'Raw Data',              icon: 'table_chart',    route: '/raw-data' },
+    { label: 'Airtable Data',          icon: 'table_chart',    route: '/airtable-data' },
     { label: 'Airtable Integration',  icon: 'cloud_sync',     route: '/integrations/airtable' },
     { label: 'Scraper',               icon: 'manage_search',  route: '/scraper' },
   ];

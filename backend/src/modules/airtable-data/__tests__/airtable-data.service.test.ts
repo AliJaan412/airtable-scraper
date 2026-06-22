@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { RawDataService } from '../services/raw-data.service';
+import { AirtableDataService } from '../services/airtable-data.service';
 
 jest.mock('mongoose', () => {
   const actual = jest.requireActual('mongoose');
@@ -31,9 +31,9 @@ function buildCollection(docs: any[]) {
   };
 }
 
-describe('RawDataService.getAllowedCollections', () => {
+describe('AirtableDataService.getAllowedCollections', () => {
   it('returns only allowed collections', () => {
-    const cols = RawDataService.getAllowedCollections();
+    const cols = AirtableDataService.getAllowedCollections();
     expect(cols).toContain('airtable_bases');
     expect(cols).toContain('airtable_records');
     expect(cols).toContain('airtable_changelogs');
@@ -41,10 +41,10 @@ describe('RawDataService.getAllowedCollections', () => {
   });
 });
 
-describe('RawDataService.query', () => {
+describe('AirtableDataService.query', () => {
   it('throws for disallowed collections', async () => {
     await expect(
-      RawDataService.query({ organizationId: 'org1', collection: 'users' }),
+      AirtableDataService.query({ organizationId: 'org1', collection: 'users' }),
     ).rejects.toThrow('not accessible');
   });
 
@@ -55,7 +55,7 @@ describe('RawDataService.query', () => {
     const col = buildCollection(docs);
     mockedDb.collection.mockReturnValue(col);
 
-    const result = await RawDataService.query({
+    const result = await AirtableDataService.query({
       organizationId: 'org1',
       collection: 'airtable_bases',
       page: 1,
@@ -72,7 +72,7 @@ describe('RawDataService.query', () => {
     const col = buildCollection(docs);
     mockedDb.collection.mockReturnValue(col);
 
-    await RawDataService.query({
+    await AirtableDataService.query({
       organizationId: 'org1',
       collection: 'airtable_bases',
       search: 'My',
@@ -86,17 +86,17 @@ describe('RawDataService.query', () => {
     const col = buildCollection([]);
     mockedDb.collection.mockReturnValue(col);
 
-    await RawDataService.query({ organizationId: 'tenant-xyz', collection: 'airtable_bases' });
+    await AirtableDataService.query({ organizationId: 'tenant-xyz', collection: 'airtable_bases' });
 
     const [queryArg] = col.find.mock.calls[0];
     expect(queryArg.organizationId).toBe('tenant-xyz');
   });
 });
 
-describe('RawDataService.getCollectionSchema', () => {
+describe('AirtableDataService.getCollectionSchema', () => {
   it('throws for disallowed collection', async () => {
     await expect(
-      RawDataService.getCollectionSchema('org1', 'secret_table'),
+      AirtableDataService.getCollectionSchema('org1', 'secret_table'),
     ).rejects.toThrow('not accessible');
   });
 
@@ -104,7 +104,7 @@ describe('RawDataService.getCollectionSchema', () => {
     const col = buildCollection([{ _id: '1', organizationId: 'org1', name: 'Base A', baseId: 'b1', __v: 0 }]);
     mockedDb.collection.mockReturnValue(col);
 
-    const fields = await RawDataService.getCollectionSchema('org1', 'airtable_bases');
+    const fields = await AirtableDataService.getCollectionSchema('org1', 'airtable_bases');
 
     expect(fields).toContain('name');
     expect(fields).not.toContain('__v');
@@ -114,7 +114,7 @@ describe('RawDataService.getCollectionSchema', () => {
     const col = buildCollection([]);
     mockedDb.collection.mockReturnValue(col);
 
-    const fields = await RawDataService.getCollectionSchema('org1', 'airtable_bases');
+    const fields = await AirtableDataService.getCollectionSchema('org1', 'airtable_bases');
 
     expect(fields).toEqual([]);
   });

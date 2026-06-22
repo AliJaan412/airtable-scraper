@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
-import { RawDataService } from '../services/raw-data.service';
+import { AirtableDataService } from '../services/airtable-data.service';
 import { sendSuccess, sendError } from '../../../common/response';
 
-export const RawDataController = {
+export const AirtableDataController = {
   getCollections(_req: Request, res: Response): void {
-    sendSuccess(res, RawDataService.getAllowedCollections());
+    sendSuccess(res, AirtableDataService.getAllowedCollections());
   },
 
   async getSchema(req: Request, res: Response): Promise<void> {
     try {
       const organizationId = (req as any).organizationId;
-      const fields = await RawDataService.getCollectionSchema(organizationId, req.params.collection);
+      const fields = await AirtableDataService.getCollectionSchema(organizationId, req.params.collection);
       sendSuccess(res, fields);
     } catch (err: any) {
       sendError(res, err.message, 400);
@@ -32,7 +32,7 @@ export const RawDataController = {
 
       if (!collection) { sendError(res, 'collection is required', 400); return; }
 
-      const result = await RawDataService.query({
+      const result = await AirtableDataService.query({
         organizationId,
         collection,
         search,

@@ -468,7 +468,7 @@ router.get('/tables', AirtableController.getTables);
  *     description: >
  *       Returns records from the `airtable_records` collection.
  *       Filter by base and/or table. Defaults to page 1, pageSize 100.
- *       For flexible querying with search and sort, prefer `POST /api/raw-data/query`.
+ *       For flexible querying with search and sort, prefer `POST /api/airtable-data/query`.
  *     tags: [Airtable]
  *     parameters:
  *       - $ref: '#/components/parameters/OrgId'

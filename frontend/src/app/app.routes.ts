@@ -3,13 +3,13 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'raw-data',
+    redirectTo: 'airtable-data',
     pathMatch: 'full',
   },
   {
-    path: 'raw-data',
+    path: 'airtable-data',
     loadComponent: () =>
-      import('./features/raw-data/raw-data.component').then((m) => m.RawDataComponent),
+      import('./features/airtable-data/airtable-data.component').then((m) => m.AirtableDataComponent),
   },
   {
     path: 'integrations/airtable',
@@ -23,6 +23,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: 'raw-data',
+    redirectTo: 'airtable-data',
   },
 ];

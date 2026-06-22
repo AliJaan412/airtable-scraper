@@ -1,15 +1,15 @@
 import mongoose from 'mongoose';
-import { RawDataQuery } from '../interfaces/raw-data-query.interface';
-import { ALLOWED_COLLECTIONS, discoverStringFields } from '../helpers/raw-data.helpers';
+import { AirtableDataQuery } from '../interfaces/airtable-data-query.interface';
+import { ALLOWED_COLLECTIONS, discoverStringFields } from '../helpers/airtable-data.helpers';
 
-export type { RawDataQuery };
+export type { AirtableDataQuery };
 
-export const RawDataService = {
+export const AirtableDataService = {
   getAllowedCollections(): string[] {
     return ALLOWED_COLLECTIONS;
   },
 
-  async query(params: RawDataQuery): Promise<{ data: any[]; total: number; fields: string[] }> {
+  async query(params: AirtableDataQuery): Promise<{ data: any[]; total: number; fields: string[] }> {
     const { organizationId, collection, search, page = 1, pageSize = 100, sortField, sortOrder, filters } = params;
 
     if (!ALLOWED_COLLECTIONS.includes(collection)) {

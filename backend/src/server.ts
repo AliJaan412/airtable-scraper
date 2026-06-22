@@ -16,7 +16,7 @@ import { startAirtableWorker, closeAirtableQueue } from './modules/airtable/queu
 
 import airtableRouter from './modules/airtable/routes/airtable.routes';
 import scraperRouter from './modules/scraper/routes/scraper.routes';
-import rawDataRouter from './modules/raw-data/routes/raw-data.routes';
+import airtableDataRouter from './modules/airtable-data/routes/airtable-data.routes';
 
 async function bootstrap() {
   await connectDatabase();
@@ -69,7 +69,7 @@ async function bootstrap() {
   // Routes
   app.use('/api/airtable', airtableRouter);
   app.use('/api/scraper', scraperRouter);
-  app.use('/api/raw-data', rawDataRouter);
+  app.use('/api/airtable-data', airtableDataRouter);
 
   // Health
   app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));

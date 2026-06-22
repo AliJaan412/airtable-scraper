@@ -78,7 +78,7 @@ export interface ScraperSession {
   cookiesValidatedAt?: string;
 }
 
-export interface RawDataQueryResult {
+export interface AirtableDataQueryResult {
   data: any[];
   fields: string[];
   total: number;
