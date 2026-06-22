@@ -46,7 +46,7 @@
         </div>
 
         <div class="step-body">
-          @if (!session() || session()?.status === 'idle' || session()?.status === 'failed') {
+          @if (!session() || session()?.status === 'failed') {
             @if (authLoading()) {
               <div class="status-banner status-banner--info">
                 <span class="btn-spinner" style="width:16px;height:16px;border-width:2px;flex-shrink:0;"></span>
@@ -124,7 +124,7 @@
         </div>
 
         <div class="step-footer">
-          @if ((!session() || session()?.status === 'idle' || session()?.status === 'failed') && !authLoading()) {
+          @if ((!session() || session()?.status === 'failed') && !authLoading()) {
             <button
               class="btn w-full"
               [class.btn--primary]="!isAuthExpired()"
@@ -135,7 +135,7 @@
               <mat-icon>{{ isAuthExpired() ? 'refresh' : 'fingerprint' }}</mat-icon>
               {{ isAuthExpired() ? 'Re-authenticate' : 'Start Authentication' }}
             </button>
-          } @else if (session()?.status === 'awaiting_mfa' || session()?.status === 'awaiting_captcha' || session()?.status === 'running' || session()?.status === 'completed') {
+          } @else if (session()?.status === 'awaiting_mfa' || session()?.status === 'awaiting_captcha' || session()?.status === 'idle' || session()?.status === 'running' || session()?.status === 'completed') {
             <div class="btn-row">
               <button class="btn btn--danger" (click)="resetSession()">
                 <mat-icon>restart_alt</mat-icon>
