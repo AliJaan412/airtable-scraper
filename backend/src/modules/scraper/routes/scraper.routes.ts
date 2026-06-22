@@ -36,7 +36,7 @@ const router = Router();
  *                 description: Airtable account password
  *     responses:
  *       200:
- *         description: Authentication started — check `status` to know if MFA is required
+ *         description: Authentication started — check `requiresMfa` to know if MFA is needed
  *         content:
  *           application/json:
  *             schema:
@@ -50,10 +50,10 @@ const router = Router();
  *                       type: string
  *                       example: "550e8400-e29b-41d4-a716-446655440000"
  *                       description: Save this — pass it to all subsequent scraper endpoints
- *                     status:
- *                       type: string
- *                       enum: [authenticating, awaiting_mfa, idle]
- *                       example: awaiting_mfa
+ *                     requiresMfa:
+ *                       type: boolean
+ *                       example: true
+ *                       description: If true, submit the TOTP code via POST /api/scraper/auth/mfa
  *       400:
  *         description: Missing email or password
  *         content:
@@ -277,7 +277,7 @@ router.delete('/session/reset', ScraperController.resetSession);
  *                   type: object
  *                   properties:
  *                     sessionId: { type: string }
- *                     status: { type: string, enum: [idle, authenticating, awaiting_mfa, running, completed, failed] }
+ *                     status: { type: string, enum: [idle, authenticating, awaiting_mfa, awaiting_captcha, running, completed, failed] }
  *                     progress:
  *                       type: object
  *                       properties:

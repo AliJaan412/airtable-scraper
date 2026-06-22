@@ -176,25 +176,16 @@ router.post('/disconnect', AirtableController.disconnect);
  * @swagger
  * /api/airtable/sync:
  *   post:
- *     summary: Full sync — bases → tables → records → users
+ *     summary: Enqueue a full sync — bases → tables → records → users
  *     description: >
- *       Runs a complete sync from the Airtable API into MongoDB in sequence:
- *       bases → tables for each base → records for each table → users.
- *       After completion, stamps `lastSyncedAt` on the connection and clears the status cache.
- *       This may take several minutes for large workspaces (Airtable rate-limit: ~4.5 req/sec).
+ *       Enqueues a BullMQ job that syncs all Airtable data into MongoDB.
+ *       Returns immediately with a `jobId`. Poll `GET /api/airtable/sync/status` to track progress.
+ *       After the job completes, `lastSyncedAt` is stamped on the connection and the status cache is cleared.
+ *       Sync may take several minutes for large workspaces (Airtable rate-limit: ~4.5 req/sec).
  *     tags: [Airtable]
  *     parameters:
  *       - $ref: '#/components/parameters/OrgId'
  *     responses:
- *       200:
- *         description: Sync complete — counts of synced items
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean, example: true }
- *                 data: { $ref: '#/components/schemas/SyncCounts' }
  *       202:
  *         description: Sync job queued — returns jobId immediately
  *         content:
@@ -206,10 +197,10 @@ router.post('/disconnect', AirtableController.disconnect);
  *                 data:
  *                   type: object
  *                   properties:
- *                     jobId: { type: string }
- *                     message: { type: string, example: 'Sync queued' }
+ *                     jobId: { type: string, example: "42" }
+ *                     message: { type: string, example: "Sync queued" }
  *       500:
- *         description: Failed to enqueue sync job
+ *         description: Failed to enqueue sync job (Redis unavailable or queue error)
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -221,7 +212,7 @@ router.post('/sync', AirtableController.syncAll);
  * /api/airtable/sync/status:
  *   get:
  *     summary: Get sync job status
- *     description: Returns the current state of the sync job for this organisation (idle, waiting, active, completed, failed).
+ *     description: Returns the current state of the sync job for this organisation (idle, waiting, delayed, active, completed, failed). `delayed` appears during exponential backoff between retry attempts.
  *     tags: [Airtable]
  *     parameters:
  *       - $ref: '#/components/parameters/OrgId'

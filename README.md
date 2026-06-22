@@ -96,7 +96,7 @@ npm start
 Click **Sync All** on the Airtable Integration page to pull bases, tables, records, and users into MongoDB.
 
 ### View Data
-Go to **Raw Data** → select an entity from the dropdown → data loads in the AG Grid with search, sort, and filter.
+Go to **Airtable Data** → select an entity from the dropdown → data loads in the AG Grid with search, sort, filter, and pagination. Use the **Fields** dialog to toggle column visibility.
 
 ### Scrape Revision History
 Go to **Scraper** → enter your Airtable email & password → authenticate (handle MFA if prompted) → click **Start Scraping**.
@@ -130,9 +130,9 @@ npm run seed
 
 | Module | Base Path | Description |
 |--------|----------|-------------|
-| Airtable | `/api/airtable` | OAuth, sync, data access |
+| Airtable | `/api/airtable` | OAuth, sync, connection management |
+| Airtable Data | `/api/airtable-data` | Dynamic collection queries for the AG Grid |
 | Scraper | `/api/scraper` | Cookie auth, scraping jobs, changelogs |
-| Raw Data | `/api/raw-data` | Dynamic collection queries for the grid |
 
 Full API reference available at **[http://localhost:3000/api/docs](http://localhost:3000/api/docs)** (Swagger UI).
 
@@ -145,11 +145,32 @@ Sred.io/
 ├── backend/
 │   └── src/
 │       ├── modules/
-│       │   ├── airtable/    ← OAuth + data sync + 429 retry
+│       │   ├── airtable/         ← OAuth + data sync + 429 retry + BullMQ queue
+│       │   │   ├── controllers/
+│       │   │   ├── helpers/
+│       │   │   ├── queues/       ← airtable.queue.ts
+│       │   │   ├── repositories/
+│       │   │   ├── routes/
+│       │   │   ├── schemas/
+│       │   │   ├── services/
 │       │   │   └── __tests__/
-│       │   ├── scraper/     ← Cookie scraping + BullMQ queue
+│       │   ├── airtable-data/    ← Dynamic grid queries
+│       │   │   ├── controllers/
+│       │   │   ├── helpers/
+│       │   │   ├── interfaces/
+│       │   │   ├── routes/
+│       │   │   ├── services/
 │       │   │   └── __tests__/
-│       │   └── raw-data/    ← Dynamic grid queries
+│       │   └── scraper/          ← Cookie scraping + BullMQ queue
+│       │       ├── controllers/
+│       │       ├── helpers/
+│       │       ├── interfaces/
+│       │       ├── parsers/
+│       │       ├── queues/       ← scraper.queue.ts
+│       │       ├── repositories/
+│       │       ├── routes/
+│       │       ├── schemas/
+│       │       ├── services/     ← scraper.service.ts + cookie.service.ts
 │       │       └── __tests__/
 │       ├── common/          ← DB, Redis client, cache, middleware
 │       ├── config/          ← Environment config
@@ -161,13 +182,14 @@ Sred.io/
         │   ├── airtable/        ← NgXs AirtableState
         │   └── scraper/         ← NgXs ScraperState
         ├── features/
-        │   ├── raw-data/        ← AG Grid page
         │   ├── airtable/        ← Connect + sync page
+        │   ├── airtable-data/   ← AG Grid page + fields-dialog
         │   └── scraper/         ← Scraper control page
         ├── core/
         │   ├── services/        ← HTTP services
         │   └── models/          ← TypeScript interfaces
-        └── shared/              ← Reusable pipes/components
+        └── shared/
+            └── pipes/           ← date-format.pipe
 ```
 
 ---
