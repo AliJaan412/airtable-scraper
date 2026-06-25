@@ -1,5 +1,5 @@
 {
-  "name": "sred-io-backend",
+  "name": "airtable-scraper-backend",
   "version": "1.0.0",
   "description": "Airtable Integration Backend",
   "private": true,

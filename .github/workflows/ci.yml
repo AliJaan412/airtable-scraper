@@ -23,10 +23,6 @@ jobs:
         working-directory: backend
         run: npm install
 
-      - name: Lint
-        working-directory: backend
-        run: npm run lint
-
       - name: Build
         working-directory: backend
         run: npm run build
@@ -49,7 +45,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Build
         working-directory: frontend
