@@ -1,4 +1,4 @@
-# Sred.io — Airtable Integration Platform
+# airtable-scraper — Airtable Integration Platform
 
 Full-stack app that connects to Airtable via OAuth, syncs data into MongoDB, scrapes revision history, and displays everything in an AG Grid UI.
 
@@ -141,7 +141,7 @@ Full API reference available at **[http://localhost:3000/api/docs](http://localh
 ## Project Structure
 
 ```
-Sred.io/
+airtable-scraper/
 ├── backend/
 │   └── src/
 │       ├── modules/

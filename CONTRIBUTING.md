@@ -1,4 +1,4 @@
-# Contributing to Sred.io
+# Contributing to airtable-scraper
 
 Thanks for taking the time to contribute! Here's everything you need to get started.
 
@@ -13,8 +13,8 @@ Thanks for taking the time to contribute! Here's everything you need to get star
 
 ```bash
 # 1. Fork and clone the repo
-git clone https://github.com/<your-username>/sred.io.git
-cd sred.io
+git clone https://github.com/<your-username>/airtable-scraper.git
+cd airtable-scraper
 
 # 2. Install dependencies
 cd backend && npm install
